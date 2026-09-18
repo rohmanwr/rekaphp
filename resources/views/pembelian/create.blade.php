@@ -8,7 +8,7 @@
         <h3 class="fw-bold text-dark mb-1">Tambah Rekap Pembelian</h3>
         <p class="text-muted small mb-0">Isi formulir berikut untuk mencatat transaksi pembelian baru.</p>
     </div>
-    <a href="{{ route('pembelian.index') }}" class="btn btn-outline-secondary">
+    <a href="{{ Route::has('pembelian.index') ? route('pembelian.index') : route('dashboard') }}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Kembali ke Rekap
     </a>
 </div>
@@ -30,8 +30,13 @@
             @csrf
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="form-label fw-semibold">Kode Transaksi Manual (Opsional)</label>
-                    <input type="text" name="kode_manual" class="form-control" value="{{ old('kode_manual') }}" placeholder="No. Invoice / Resi Toko">
+                    <label class="form-label fw-semibold">No. Pesanan <span class="text-danger">*</span></label>
+                    <input type="text" name="kode_manual" class="form-control" value="{{ old('kode_manual') }}" placeholder="Contoh: INV/2026/001 / No. Invoice Toko" required>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Nama pada Alamat</label>
+                    <input type="text" name="nama_alamat" class="form-control" value="{{ old('nama_alamat') }}" placeholder="Contoh: Budi (Penerima Paket)">
                 </div>
 
                 <div class="col-md-6">
@@ -45,7 +50,6 @@
                         @endforeach
                     </select>
                 </div>
-
 
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Nama Toko Pembelian <span class="text-danger">*</span></label>
@@ -114,7 +118,7 @@
             <hr class="my-4">
 
             <div class="d-flex justify-content-end gap-2">
-                <a href="{{ route('pembelian.index') }}" class="btn btn-light px-4">Batal</a>
+                <a href="{{ Route::has('pembelian.index') ? route('pembelian.index') : route('dashboard') }}" class="btn btn-light px-4">Batal</a>
                 <button type="submit" class="btn btn-primary px-4">
                     <i class="bi bi-save"></i> Simpan Pembelian
                 </button>
@@ -125,7 +129,6 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Toggle input via transaksi manual
         const selectVia = document.getElementById('selectViaTambah');
         const inputVia = document.getElementById('inputViaTambah');
 
@@ -144,7 +147,6 @@
             });
         }
 
-        // Format Ribuan (Titik) Realtime
         function formatRupiah(angka) {
             let number_string = angka.replace(/[^,\d]/g, '').toString(),
                 split = number_string.split(','),

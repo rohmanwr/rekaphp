@@ -3,6 +3,9 @@
 @section('title', 'Rekap Pembelian HP')
 
 @section('content')
+<!-- Library Scanner Barcode HTML5 -->
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h3 class="fw-bold text-dark mb-0">Rekap Pembelian</h3>
     <a href="{{ route('pembelian.create') }}" class="btn btn-primary">
@@ -31,7 +34,7 @@
                     id="searchInput"
                     name="search"
                     class="form-control border-start-0 ps-0"
-                    placeholder="Cari otomatis berdasarkan Kode TRX, Nama Barang, Device, atau Toko..."
+                    placeholder="Cari otomatis berdasarkan Kode TRX, Nama Barang, Device, Toko, atau IMEI..."
                     value="{{ $search }}"
                     autocomplete="off"
                     autofocus>
@@ -71,6 +74,11 @@
                 class="btn btn-sm rounded-pill {{ $selectedStatus == 'Bermasalah' ? 'btn-danger fw-bold' : 'btn-outline-danger' }}">
                 ⚠️ Bermasalah
             </a>
+
+            <a href="{{ route('pembelian.index', array_filter(['search' => $search, 'status' => 'Jual'])) }}"
+                class="btn btn-sm rounded-pill {{ $selectedStatus == 'Jual' ? 'btn-info text-white fw-bold' : 'btn-outline-info text-dark' }}">
+                🏷️ Jual
+            </a>
         </div>
     </div>
 </div>
@@ -83,12 +91,13 @@
                 <thead class="table-light">
                     <tr>
                         <th class="text-center" style="width: 50px;">No</th>
-                        <th>Kode Transaksi</th>
+                        <th>Kode Manual</th>
                         <th>Barang & Toko</th>
+                        <th>IMEI / Serial</th>
                         <th>Via</th>
-                        <th style="width: 150px;">Status</th>
                         <th>Tgl Beli</th>
                         <th>Total Modal</th>
+                        <th style="width: 150px;">Status</th>
                         <th>Lampiran</th>
                         <th class="text-center" style="width: 120px;">Aksi</th>
                     </tr>
@@ -97,7 +106,7 @@
                     @forelse($pembelians as $index => $item)
                     <tr>
                         <td class="text-center fw-semibold text-muted">
-                            {{ $pembelians->firstItem() ? $pembelians->firstItem() + $index : $index + 1 }}
+                            {{ $loop->iteration }}
                         </td>
                         <td>{{ $item->kode_manual ?? '-' }}</td>
                         <td>
@@ -106,6 +115,13 @@
                             <br><small class="text-primary fw-semibold"><i class="bi bi-phone"></i> {{ $item->nama_device }}</small>
                             @endif
                             <br><small class="text-muted"><i class="bi bi-shop"></i> {{ $item->nama_toko }}</small>
+                        </td>
+                        <td>
+                            @if(!empty($item->detail_imei))
+                            <span class="badge bg-light text-dark border font-monospace">{{ $item->detail_imei }}</span>
+                            @else
+                            <span class="text-muted small">-</span>
+                            @endif
                         </td>
                         <td>
                             @php
@@ -119,8 +135,10 @@
                             @endphp
                             <span class="badge {{ $badgeColor }}">{{ $item->via }}</span>
                         </td>
+                        <td>{{ \Carbon\Carbon::parse($item->tanggal_beli)->format('d/m/Y') }}</td>
+                        <td class="fw-bold">Rp {{ number_format($item->total_modal, 0, ',', '.') }}</td>
                         <td>
-                            <!-- Quick Update Status (Samping Kanan Via) -->
+                            <!-- Quick Update Status -->
                             <form action="{{ route('pembelian.updateStatus', $item->id) }}" method="POST" class="d-inline-block">
                                 @csrf
                                 @method('PATCH')
@@ -130,6 +148,7 @@
                                 'Belum Ready' => 'btn-outline-warning text-dark',
                                 'Sudah Diambil' => 'btn-outline-primary',
                                 'Bermasalah' => 'btn-outline-danger',
+                                'Jual' => 'btn-outline-info text-dark',
                                 default => 'btn-outline-secondary'
                                 };
                                 @endphp
@@ -138,11 +157,10 @@
                                     <option value="Sudah Ready" {{ $item->status == 'Sudah Ready' ? 'selected' : '' }}>✅ Sudah Ready</option>
                                     <option value="Sudah Diambil" {{ $item->status == 'Sudah Diambil' ? 'selected' : '' }}>📦 Sudah Diambil</option>
                                     <option value="Bermasalah" {{ $item->status == 'Bermasalah' ? 'selected' : '' }}>⚠️ Bermasalah</option>
+                                    <option value="Jual" {{ $item->status == 'Jual' ? 'selected' : '' }}>🏷️ Jual</option>
                                 </select>
                             </form>
                         </td>
-                        <td>{{ \Carbon\Carbon::parse($item->tanggal_beli)->format('d/m/Y') }}</td>
-                        <td class="fw-bold">Rp {{ number_format($item->total_modal, 0, ',', '.') }}</td>
                         <td>
                             @if(!empty($item->file_lampiran) && count($item->file_lampiran) > 0)
                             <div class="d-flex flex-wrap gap-1">
@@ -176,12 +194,12 @@
                     </tr>
 
                     <!-- Modal Edit Pembelian -->
-                    <div class="modal fade" id="modalEditPembelian{{ $item->id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal fade modal-edit-item" id="modalEditPembelian{{ $item->id }}" data-item-id="{{ $item->id }}" tabindex="-1" aria-hidden="true">
                         <div class="modal-dialog modal-lg">
                             <div class="modal-content text-start">
                                 <div class="modal-header">
                                     <h5 class="modal-title fw-bold">Edit Rekap Pembelian ({{ $item->kode_otomatis }})</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="stopScanner({{ $item->id }})"></button>
                                 </div>
                                 <form action="{{ route('pembelian.update', $item->id) }}" method="POST" enctype="multipart/form-data" class="form-pembelian">
                                     @csrf
@@ -189,7 +207,7 @@
                                     <div class="modal-body">
                                         <div class="row g-3">
                                             <div class="col-md-6">
-                                                <label class="form-label">Kode Transaksi</label>
+                                                <label class="form-label">Kode Transaksi Manual (Opsional)</label>
                                                 <input type="text" name="kode_manual" class="form-control" value="{{ old('kode_manual', $item->kode_manual) }}" placeholder="No. Invoice / Resi Toko">
                                             </div>
 
@@ -200,6 +218,18 @@
                                                     @foreach($barangs as $brg)
                                                     <option value="{{ $brg->nama_barang }}" {{ $item->nama_barang == $brg->nama_barang ? 'selected' : '' }}>
                                                         {{ $brg->nama_barang }}
+                                                    </option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <label class="form-label">Nama Device (Spesifik)</label>
+                                                <select name="nama_device" class="form-select">
+                                                    <option value="" selected>-- Pilih Device --</option>
+                                                    @foreach($devices as $dev)
+                                                    <option value="{{ $dev->nama_device }}" {{ $item->nama_device == $dev->nama_device ? 'selected' : '' }}>
+                                                        [{{ $dev->kode_device }}] {{ $dev->nama_device }}
                                                     </option>
                                                     @endforeach
                                                 </select>
@@ -240,16 +270,6 @@
                                             </div>
 
                                             <div class="col-md-6">
-                                                <label class="form-label fw-semibold">Status Barang</label>
-                                                <select name="status" class="form-select" required>
-                                                    <option value="Belum Ready" {{ $item->status == 'Belum Ready' ? 'selected' : '' }}>⏳ Belum Ready</option>
-                                                    <option value="Sudah Ready" {{ $item->status == 'Sudah Ready' ? 'selected' : '' }}>✅ Sudah Ready</option>
-                                                    <option value="Sudah Diambil" {{ $item->status == 'Sudah Diambil' ? 'selected' : '' }}>📦 Sudah Diambil</option>
-                                                    <option value="Bermasalah" {{ $item->status == 'Bermasalah' ? 'selected' : '' }}>⚠️ Bermasalah</option>
-                                                </select>
-                                            </div>
-
-                                            <div class="col-md-6">
                                                 <label class="form-label">Tanggal Beli</label>
                                                 <input type="date" name="tanggal_beli" class="form-control" value="{{ old('tanggal_beli', $item->tanggal_beli) }}" required>
                                             </div>
@@ -266,18 +286,49 @@
                                                     autocomplete="off">
                                             </div>
 
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-semibold">Status Barang</label>
+                                                <select name="status" class="form-select" required>
+                                                    <option value="Belum Ready" {{ $item->status == 'Belum Ready' ? 'selected' : '' }}>⏳ Belum Ready</option>
+                                                    <option value="Sudah Ready" {{ $item->status == 'Sudah Ready' ? 'selected' : '' }}>✅ Sudah Ready</option>
+                                                    <option value="Sudah Diambil" {{ $item->status == 'Sudah Diambil' ? 'selected' : '' }}>📦 Sudah Diambil</option>
+                                                    <option value="Bermasalah" {{ $item->status == 'Bermasalah' ? 'selected' : '' }}>⚠️ Bermasalah</option>
+                                                    <option value="Jual" {{ $item->status == 'Jual' ? 'selected' : '' }}>🏷️ Jual</option>
+                                                </select>
+                                            </div>
+
+                                            <!-- Form IMEI dan Auto Scan Barcode Kamera -->
+                                            <div class="col-12 bg-light p-3 rounded border">
+                                                <label class="form-label fw-bold text-primary"><i class="bi bi-barcode me-1"></i> Nomor IMEI / Detail IMEI</label>
+                                                <div class="input-group">
+                                                    <input type="text" id="imeiInput{{ $item->id }}" name="detail_imei" class="form-control font-monospace" value="{{ old('detail_imei', $item->detail_imei) }}" placeholder="Ketik manual atau scan otomatis kamera...">
+                                                    <button type="button" class="btn btn-outline-primary fw-semibold" onclick="startScanner({{ $item->id }})">
+                                                        <i class="bi bi-camera"></i> Auto Scan Barcode
+                                                    </button>
+                                                </div>
+
+                                                <!-- Container Kamera Auto Scan -->
+                                                <div id="readerWrapper{{ $item->id }}" class="mt-2 d-none text-center">
+                                                    <div class="alert alert-info py-2 small mb-2">
+                                                        <i class="bi bi-info-circle"></i> Arahkan kamera ke barcode/QR Code IMEI pada dus HP. Barcode akan otomatis terdeteksi.
+                                                    </div>
+                                                    <div id="reader{{ $item->id }}" class="border rounded overflow-hidden" style="width: 100%; max-width: 450px; margin: 0 auto; min-height: 250px; background-color: #000;"></div>
+                                                    <button type="button" class="btn btn-sm btn-secondary mt-2 px-3" onclick="stopScanner({{ $item->id }})">Tutup Kamera</button>
+                                                </div>
+                                            </div>
+
                                             @if(!empty($item->file_lampiran) && count($item->file_lampiran) > 0)
                                             <div class="col-12">
                                                 <label class="form-label fw-semibold">Lampiran Ter-upload (Centang untuk menghapus saat update):</label>
                                                 <div class="d-flex flex-wrap gap-2">
-                                                    @foreach($item->file_lampiran as $idx => $filePath)
+                                                    @foreach($item->file_lampiran as $idx =>$filePath)
                                                     <div class="border rounded p-2 bg-light d-flex flex-column align-items-start gap-1" style="min-width: 120px;">
                                                         <a href="{{ asset('storage/' . $filePath) }}" target="_blank" class="small text-decoration-none fw-semibold text-truncate w-100" title="File {{ $idx + 1 }}">
                                                             <i class="bi bi-paperclip"></i> File {{ $idx + 1 }}
                                                         </a>
                                                         <div class="form-check form-check-inline m-0 pt-1 border-top w-100">
-                                                            <input class="form-check-input bg-danger border-danger" type="checkbox" name="delete_files[]" value="{{ $idx }}" id="delFile{{ $item->id }}_{{ $idx }}">
-                                                            <label class="form-check-label small text-danger fw-semibold" for="delFile{{ $item->id }}_{{ $idx }}" style="font-size: 0.75rem;">
+                                                            <input class="form-check-input bg-danger border-danger" type="checkbox" name="delete_files[]" value="{{ $idx }}" id="delFile{{ $item->id }}_{{$idx }}">
+                                                            <label class="form-check-label small text-danger fw-semibold" for="delFile{{ $item->id }}_{{$idx }}" style="font-size: 0.75rem;">
                                                                 Hapus File
                                                             </label>
                                                         </div>
@@ -295,7 +346,7 @@
                                         </div>
                                     </div>
                                     <div class="modal-footer">
-                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal" onclick="stopScanner({{ $item->id }})">Batal</button>
                                         <button type="submit" class="btn btn-warning text-white fw-semibold">Update Pembelian</button>
                                     </div>
                                 </form>
@@ -304,22 +355,97 @@
                     </div>
                     @empty
                     <tr>
-                        <td colspan="9" class="text-center py-4 text-muted">Tidak ada data rekap pembelian.</td>
+                        <td colspan="10" class="text-center py-4 text-muted">Tidak ada data rekap pembelian.</td>
                     </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </div>
-    @if($pembelians->hasPages())
-    <div class="card-footer bg-white">
-        {{ $pembelians->appends(['search' => $search, 'status' => $selectedStatus])->links() }}
-    </div>
-    @endif
 </div>
 
 <script>
+    let activeScanners = {};
+
+    function startScanner(id) {
+        const wrapper = document.getElementById(`readerWrapper${id}`);
+        if (!wrapper) return;
+        wrapper.classList.remove('d-none');
+
+        if (activeScanners[id]) {
+            return;
+        }
+
+        const html5QrCode = new Html5Qrcode(`reader${id}`);
+        activeScanners[id] = html5QrCode;
+
+        const config = {
+            fps: 15,
+            qrbox: function(viewfinderWidth, viewfinderHeight) {
+                return {
+                    width: Math.floor(viewfinderWidth * 0.8),
+                    height: Math.floor(viewfinderHeight * 0.5)
+                };
+            },
+            aspectRatio: 1.0,
+            experimentalFeatures: {
+                useBarCodeDetectorIfSupported: true
+            }
+        };
+
+        html5QrCode.start({
+                facingMode: "environment"
+            },
+            config,
+            (decodedText, decodedResult) => {
+                const imeiInput = document.getElementById(`imeiInput${id}`);
+                if (imeiInput) {
+                    imeiInput.value = decodedText;
+                }
+
+                if (navigator.vibrate) {
+                    navigator.vibrate(100);
+                }
+
+                stopScanner(id);
+            },
+            (errorMessage) => {
+                // Proses pindaian berlanjut otomatis
+            }
+        ).catch(err => {
+            alert("Gagal mengakses kamera: " + err);
+            wrapper.classList.add('d-none');
+            delete activeScanners[id];
+        });
+    }
+
+    async function stopScanner(id) {
+        const wrapper = document.getElementById(`readerWrapper${id}`);
+
+        if (activeScanners[id]) {
+            try {
+                if (activeScanners[id].isScanning) {
+                    await activeScanners[id].stop();
+                }
+            } catch (err) {
+                console.warn("Kamera dihentikan:", err);
+            } finally {
+                if (wrapper) wrapper.classList.add('d-none');
+                delete activeScanners[id];
+            }
+        } else {
+            if (wrapper) wrapper.classList.add('d-none');
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.modal-edit-item').forEach(modalEl => {
+            modalEl.addEventListener('hidden.bs.modal', function() {
+                const id = this.dataset.itemId;
+                if (id) stopScanner(id);
+            });
+        });
+
         const searchInput = document.getElementById('searchInput');
         const searchForm = document.getElementById('searchForm');
         let timer;

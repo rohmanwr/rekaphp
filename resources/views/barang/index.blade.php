@@ -63,6 +63,7 @@
                         <th class="text-center" style="width: 50px;">No</th>
                         <th>Kode Barang</th>
                         <th>Nama Barang</th>
+                        <th>Harga Jual</th>
                         <th class="text-center" style="width: 150px;">Aksi</th>
                     </tr>
                 </thead>
@@ -74,6 +75,7 @@
                         </td>
                         <td><span class="badge bg-dark fs-6">{{ $item->kode_barang }}</span></td>
                         <td class="fw-semibold">{{ $item->nama_barang }}</td>
+                        <td class="fw-bold text-success">Rp {{ number_format($item->harga_jual, 0, ',', '.') }}</td>
                         <td class="text-center">
                             <button type="button" class="btn btn-sm btn-warning text-white fw-semibold" data-bs-toggle="modal" data-bs-target="#modalEditBarang{{ $item->id }}" title="Edit Data">
                                 <i class="bi bi-pencil-square"></i>
@@ -96,7 +98,7 @@
                                     <h5 class="modal-title fw-bold">Edit Data Barang</h5>
                                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                 </div>
-                                <form action="{{ route('barang.update', $item->id) }}" method="POST">
+                                <form action="{{ route('barang.update', $item->id) }}" method="POST" class="form-barang">
                                     @csrf
                                     @method('PUT')
                                     <div class="modal-body">
@@ -107,6 +109,10 @@
                                         <div class="mb-3">
                                             <label class="form-label fw-semibold">Nama Barang</label>
                                             <input type="text" name="nama_barang" class="form-control" value="{{ old('nama_barang', $item->nama_barang) }}" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold">Harga Jual (Rp)</label>
+                                            <input type="text" name="harga_jual" class="form-control input-rupiah" value="{{ old('harga_jual', number_format($item->harga_jual, 0, ',', '.')) }}" placeholder="Contoh: 12.500.000" autocomplete="off" required>
                                         </div>
                                     </div>
                                     <div class="modal-footer">
@@ -119,7 +125,7 @@
                     </div>
                     @empty
                     <tr>
-                        <td colspan="4" class="text-center py-4 text-muted">Tidak ada data barang.</td>
+                        <td colspan="5" class="text-center py-4 text-muted">Tidak ada data barang.</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -141,7 +147,7 @@
                 <h5 class="modal-title fw-bold">Tambah Data Barang</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="{{ route('barang.store') }}" method="POST">
+            <form action="{{ route('barang.store') }}" method="POST" class="form-barang">
                 @csrf
                 <div class="modal-body">
                     <div class="mb-3">
@@ -151,6 +157,10 @@
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Nama Barang</label>
                         <input type="text" name="nama_barang" class="form-control" placeholder="Contoh: iPhone 13 Pro 128GB" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Harga Jual (Rp)</label>
+                        <input type="text" name="harga_jual" class="form-control input-rupiah" placeholder="Contoh: 12.500.000" autocomplete="off" required>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -164,6 +174,7 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Auto-submit search
         const searchInput = document.getElementById('searchInput');
         const searchForm = document.getElementById('searchForm');
         let timer;
@@ -180,6 +191,37 @@
                 }, 500);
             });
         }
+
+        // Format Rupiah
+        function formatRupiah(angka) {
+            let number_string = angka.replace(/[^,\d]/g, '').toString(),
+                split = number_string.split(','),
+                sisa = split[0].length % 3,
+                rupiah = split[0].substr(0, sisa),
+                ribuan = split[0].substr(sisa).match(/\d{3}/gi);
+
+            if (ribuan) {
+                let separator = sisa ? '.' : '';
+                rupiah += separator + ribuan.join('.');
+            }
+            return split[1] != undefined ? rupiah + ',' + split[1] : rupiah;
+        }
+
+        document.addEventListener('keyup', function(e) {
+            if (e.target && e.target.classList.contains('input-rupiah')) {
+                e.target.value = formatRupiah(e.target.value);
+            }
+        });
+
+        // Hapus titik sebelum form disubmit agar masuk database sebagai angka murni
+        document.querySelectorAll('.form-barang').forEach(function(form) {
+            form.addEventListener('submit', function() {
+                let rupiahInput = form.querySelector('.input-rupiah');
+                if (rupiahInput) {
+                    rupiahInput.value = rupiahInput.value.replace(/\./g, '');
+                }
+            });
+        });
     });
 </script>
 @endsection

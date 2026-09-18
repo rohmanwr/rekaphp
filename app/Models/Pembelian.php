@@ -9,14 +9,28 @@ class Pembelian extends Model
 {
     use HasFactory;
 
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'user_id',
+        'kode_manual',
+        'nama_alamat', // Tambahkan ini
+        'kode_otomatis',
+        'nama_barang',
+        'nama_toko',
+        'via',
+        'tanggal_beli',
+        'total_modal',
+        'status',
+        'deskripsi_imei',
+        'detail_imei', // Tambahkan ini
+        'file_lampiran',
+    ];
 
     protected $casts = [
         'file_lampiran' => 'array',
     ];
 
-    public function penjualan()
+    public function user()
     {
-        return $this->hasOne(Penjualan::class, 'pembelian_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

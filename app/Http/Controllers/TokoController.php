@@ -11,11 +11,15 @@ class TokoController extends Controller
     {
         $search = $request->input('search');
 
-        $tokos = Toko::when($search, function ($query, $search) {
-            return $query->where('kode_toko', 'like', "%{$search}%")
-                ->orWhere('nama_toko', 'like', "%{$search}%")
-                ->orWhere('lokasi_toko', 'like', "%{$search}%");
-        })->latest()->paginate(10);
+        $query = Toko::query();
+
+        if (!empty($search)) {
+            $query->where('nama_toko', 'like', "%{$search}%")
+                  ->orWhere('kode_toko', 'like', "%{$search}%")
+                  ->orWhere('lokasi_toko', 'like', "%{$search}%");
+        }
+
+        $tokos = $query->orderBy('nama_toko', 'asc')->paginate(10);
 
         return view('toko.index', compact('tokos', 'search'));
     }
@@ -23,20 +27,15 @@ class TokoController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'kode_toko'   => 'required|string|max:50|unique:tokos,kode_toko',
+            'kode_toko'   => 'required|string|max:255|unique:tokos,kode_toko',
             'nama_toko'   => 'required|string|max:255',
             'lokasi_toko' => 'nullable|string|max:255',
-            'link_toko'   => 'nullable|url',
+            'link_toko'   => 'nullable|url|max:255',
         ]);
 
-        Toko::create([
-            'kode_toko'   => $request->kode_toko,
-            'nama_toko'   => $request->nama_toko,
-            'lokasi_toko' => $request->lokasi_toko,
-            'link_toko'   => $request->link_toko,
-        ]);
+        Toko::create($request->all());
 
-        return redirect()->route('toko.index')->with('success', 'Data toko berhasil ditambahkan!');
+        return redirect()->route('toko.index')->with('success', 'Data Toko berhasil ditambahkan!');
     }
 
     public function update(Request $request, $id)
@@ -44,20 +43,15 @@ class TokoController extends Controller
         $toko = Toko::findOrFail($id);
 
         $request->validate([
-            'kode_toko'   => 'required|string|max:50|unique:tokos,kode_toko,' . $toko->id,
+            'kode_toko'   => 'required|string|max:255|unique:tokos,kode_toko,' . $id,
             'nama_toko'   => 'required|string|max:255',
             'lokasi_toko' => 'nullable|string|max:255',
-            'link_toko'   => 'nullable|url',
+            'link_toko'   => 'nullable|url|max:255',
         ]);
 
-        $toko->update([
-            'kode_toko'   => $request->kode_toko,
-            'nama_toko'   => $request->nama_toko,
-            'lokasi_toko' => $request->lokasi_toko,
-            'link_toko'   => $request->link_toko,
-        ]);
+        $toko->update($request->all());
 
-        return redirect()->route('toko.index')->with('success', 'Data toko berhasil diperbarui!');
+        return redirect()->route('toko.index')->with('success', 'Data Toko berhasil diperbarui!');
     }
 
     public function destroy($id)
@@ -65,6 +59,6 @@ class TokoController extends Controller
         $toko = Toko::findOrFail($id);
         $toko->delete();
 
-        return redirect()->route('toko.index')->with('success', 'Data toko berhasil dihapus!');
+        return redirect()->route('toko.index')->with('success', 'Data Toko berhasil dihapus!');
     }
 }
