@@ -79,6 +79,11 @@
                 class="btn btn-sm rounded-pill {{ $selectedStatus == 'Jual' ? 'btn-info text-white fw-bold' : 'btn-outline-info text-dark' }}">
                 🏷️ Jual
             </a>
+
+            <a href="{{ route('pembelian.index', array_filter(['search' => $search, 'status' => 'Selesai'])) }}"
+                class="btn btn-sm rounded-pill {{ $selectedStatus == 'Selesai' ? 'btn-secondary text-white fw-bold' : 'btn-outline-secondary' }}">
+                🏁 Selesai
+            </a>
         </div>
     </div>
 </div>
@@ -149,6 +154,7 @@
                                 'Sudah Diambil' => 'btn-outline-primary',
                                 'Bermasalah' => 'btn-outline-danger',
                                 'Jual' => 'btn-outline-info text-dark',
+                                'Selesai' => 'btn-outline-secondary',
                                 default => 'btn-outline-secondary'
                                 };
                                 @endphp
@@ -158,6 +164,7 @@
                                     <option value="Sudah Diambil" {{ $item->status == 'Sudah Diambil' ? 'selected' : '' }}>📦 Sudah Diambil</option>
                                     <option value="Bermasalah" {{ $item->status == 'Bermasalah' ? 'selected' : '' }}>⚠️ Bermasalah</option>
                                     <option value="Jual" {{ $item->status == 'Jual' ? 'selected' : '' }}>🏷️ Jual</option>
+                                    <option value="Selesai" {{ $item->status == 'Selesai' ? 'selected' : '' }}>🏁 Selesai</option>
                                 </select>
                             </form>
                         </td>
@@ -294,6 +301,7 @@
                                                     <option value="Sudah Diambil" {{ $item->status == 'Sudah Diambil' ? 'selected' : '' }}>📦 Sudah Diambil</option>
                                                     <option value="Bermasalah" {{ $item->status == 'Bermasalah' ? 'selected' : '' }}>⚠️ Bermasalah</option>
                                                     <option value="Jual" {{ $item->status == 'Jual' ? 'selected' : '' }}>🏷️ Jual</option>
+                                                    <option value="Selesai" {{ $item->status == 'Selesai' ? 'selected' : '' }}>🏁 Selesai</option>
                                                 </select>
                                             </div>
 

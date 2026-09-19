@@ -4,7 +4,7 @@
 
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h3 class="fw-bold text-dark mb-0">Histori Penjualan (Invoice Terbit)</h3>
+    <h3 class="fw-bold text-dark mb-0">Histori Penjualan & Arsip Invoice</h3>
 </div>
 
 @if(session('success'))
@@ -14,14 +14,6 @@
 </div>
 @endif
 
-@if(session('error'))
-<div class="alert alert-danger alert-dismissible fade show" role="alert">
-    {{ session('error') }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-@endif
-
-<!-- Tabel Histori Penjualan -->
 <div class="card border-0 shadow-sm">
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -34,69 +26,116 @@
                         <th>Pelanggan</th>
                         <th>Tanggal Terbit</th>
                         <th>Total Tagihan</th>
-                        <th class="text-center" style="width: 120px;">Aksi Invoice</th>
+                        <th class="text-center" style="width: 120px;">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
+                    @php
+                    // Mengambil master data barang untuk referensi cadangan jika data invoice lama kosong
+                    $masterBarangs = \App\Models\Barang::all()->keyBy('nama_barang');
+                    @endphp
+
                     @forelse($invoices as $index => $invoice)
                     @php
                     $displayItems = [];
 
-                    // 1. Cek dari pembelian_data (Format Snapshot Baru)
-                    if (!empty($invoice->pembelian_data) && is_array($invoice->pembelian_data)) {
-                    foreach($invoice->pembelian_data as $it) {
-                    $imeiVal = $it['detail_imei'] ?? ($it['imei'] ?? (is_array($it['imei_list'] ?? null) ? implode(', ', $it['imei_list']) : '-'));
+                    $rawPembelianData = $invoice->pembelian_data;
+                    if (is_string($rawPembelianData)) {
+                    $rawPembelianData = json_decode($rawPembelianData, true);
+                    }
+
+                    $rawItems = $invoice->items;
+                    if (is_string($rawItems)) {
+                    $rawItems = json_decode($rawItems, true);
+                    }
+
+                    $sourceItems = !empty($rawPembelianData) && is_array($rawPembelianData)
+                    ? $rawPembelianData
+                    : (is_array($rawItems) ? $rawItems : []);
+
+                    foreach($sourceItems as $it) {
+                    $namaBarangIt = $it['nama_barang'] ?? ($it['deskripsi'] ?? 'Barang');
+
+                    // Cek dan ambil harga jual dari berbagai variasi key di database
+                    $hargaJualHistori = 0;
+                    if (isset($it['harga_jual']) && is_numeric($it['harga_jual']) && $it['harga_jual'] > 0) {
+                    $hargaJualHistori = (float) $it['harga_jual'];
+                    } elseif (isset($it['harga']) && is_numeric($it['harga']) && $it['harga'] > 0) {
+                    $hargaJualHistori = (float) $it['harga'];
+                    } elseif (isset($it['jumlah']) && isset($it['kuantitas']) && $it['kuantitas'] > 0) {
+                    $hargaJualHistori = (float) ($it['jumlah'] / $it['kuantitas']);
+                    } elseif (isset($it['jumlah']) && is_numeric($it['jumlah']) && $it['jumlah'] > 0) {
+                    $hargaJualHistori = (float) $it['jumlah'];
+                    } else {
+                    // Fallback terakhir jika data benar-benar kosong, ambil dari master barang saat ini
+                    $masterBrg = $masterBarangs[$namaBarangIt] ?? null;
+                    $hargaJualHistori = (float) ($masterBrg->harga_jual ?? ($masterBrg->harga ?? 0));
+                    }
+
+                    // Cek IMEI / Serial
+                    $imeis = [];
+                    if (isset($it['imei_list']) && is_array($it['imei_list']) && count($it['imei_list']) > 0) {
+                    $imeis = $it['imei_list'];
+                    } else {
+                    $rawImei = $it['detail_imei'] ?? ($it['deskripsi_imei'] ?? ($it['imei'] ?? ''));
+                    if (!empty($rawImei) && $rawImei !== '-') {
+                    $cleaned = str_replace(["\r", ","], "\n", $rawImei);
+                    $lines = explode("\n", $cleaned);
+                    foreach ($lines as $line) {
+                    $trimmed = trim($line);
+                    if (!empty($trimmed)) {
+                    $imeis[] = $trimmed;
+                    }
+                    }
+                    }
+                    }
+
+                    $modalIt = isset($it['total_modal']) ? (float) $it['total_modal'] : 0;
+
+                    if (count($imeis) > 1) {
+                    $hargaSatuanUnit = count($imeis) > 0 ? ($hargaJualHistori / count($imeis)) : $hargaJualHistori;
+                    foreach ($imeis as $singleImei) {
                     $displayItems[] = [
-                    'nama_barang' => $it['nama_barang'] ?? 'Barang',
+                    'nama_barang' => $namaBarangIt,
                     'nama_device' => $it['nama_device'] ?? null,
-                    'nama_toko' => $it['nama_toko'] ?? '-',
-                    'detail_imei' => $imeiVal,
+                    'nama_toko' => $it['nama_toko'] ?? ($it['toko'] ?? '-'),
                     'via' => $it['via'] ?? '-',
+                    'detail_imei' => $singleImei,
                     'tanggal_beli' => $it['tanggal_beli'] ?? $invoice->tanggal,
-                    'total_modal' => $it['total_modal'] ?? ($it['jumlah'] ?? 0),
+                    'total_modal' => $modalIt,
+                    'harga_jual' => $hargaSatuanUnit,
+                    'total_profit' => $hargaSatuanUnit - $modalIt,
                     'file_lampiran' => $it['file_lampiran'] ?? [],
                     ];
                     }
-                    }
-                    // 2. Cek dari items (Format Alternatif / Lama)
-                    elseif (!empty($invoice->items) && is_array($invoice->items)) {
-                    foreach($invoice->items as $it) {
-                    $imeiVal = '';
-                    if (isset($it['detail_imei']) && !empty($it['detail_imei'])) {
-                    $imeiVal = $it['detail_imei'];
-                    } elseif (isset($it['imei_list']) && is_array($it['imei_list'])) {
-                    $imeiVal = implode(', ', $it['imei_list']);
-                    } elseif (isset($it['imei']) && !empty($it['imei'])) {
-                    $imeiVal = $it['imei'];
                     } else {
-                    $imeiVal = '-';
-                    }
+                    $singleImei = count($imeis) === 1 ? $imeis[0] : '-';
+                    $profitIt = isset($it['total_profit']) ? (float) $it['total_profit'] : ($hargaJualHistori - $modalIt);
 
                     $displayItems[] = [
-                    'nama_barang' => $it['nama_barang'] ?? ($it['deskripsi'] ?? 'Barang Invoice'),
+                    'nama_barang' => $namaBarangIt,
                     'nama_device' => $it['nama_device'] ?? null,
                     'nama_toko' => $it['nama_toko'] ?? ($it['toko'] ?? '-'),
-                    'detail_imei' => $imeiVal,
                     'via' => $it['via'] ?? '-',
+                    'detail_imei' => $singleImei,
                     'tanggal_beli' => $it['tanggal_beli'] ?? $invoice->tanggal,
-                    'total_modal' => $it['total_modal'] ?? ($it['jumlah'] ?? ($invoice->total ?? 0)),
+                    'total_modal' => $modalIt,
+                    'harga_jual' => $hargaJualHistori,
+                    'total_profit' => $profitIt,
                     'file_lampiran' => $it['file_lampiran'] ?? [],
                     ];
                     }
                     }
                     @endphp
 
-                    <!-- Baris Utama Invoice -->
                     <tr>
                         <td class="text-center fw-semibold text-muted">{{ $loop->iteration }}</td>
                         <td class="text-center">
-                            <button class="btn btn-sm btn-outline-secondary rounded-circle" type="button" data-bs-toggle="collapse" data-bs-target="#collapseInvoice{{ $invoice->id }}" aria-expanded="false" aria-controls="collapseInvoice{{ $invoice->id }}" title="Lihat Rincian Barang">
+                            <button class="btn btn-sm btn-outline-secondary rounded-circle" type="button" data-bs-toggle="collapse" data-bs-target="#collapseInvoice{{ $invoice->id }}" title="Lihat Rincian Barang">
                                 <i class="bi bi-chevron-down"></i>
                             </button>
                         </td>
-                        <td>
-                            <span class="fw-bold text-primary">{{ $invoice->referensi }}</span>
-                        </td>
+                        <td><span class="fw-bold text-primary">{{ $invoice->referensi }}</span></td>
                         <td>
                             <span class="fw-semibold text-dark">{{ $invoice->nama_pelanggan }}</span>
                             @if(!empty($invoice->alamat_pelanggan))
@@ -106,21 +145,18 @@
                         <td>{{ \Carbon\Carbon::parse($invoice->tanggal)->format('d/m/Y') }}</td>
                         <td class="fw-bold text-success">Rp {{ number_format($invoice->total ?? 0, 0, ',', '.') }}</td>
                         <td class="text-center">
-                            <a href="{{ route('invoice.show', $invoice->id) }}" class="btn btn-sm btn-primary" title="Cetak / Lihat Invoice">
+                            <a href="{{ route('invoice.show', $invoice->id) }}" class="btn btn-sm btn-primary">
                                 <i class="bi bi-file-earmark-text"></i> Invoice
                             </a>
                         </td>
                     </tr>
 
-                    <!-- Baris Dropdown Rincian Barang -->
+                    <!-- Baris Rincian Lengkap (Dropdown) -->
                     <tr class="bg-light">
                         <td colspan="7" class="p-0 border-0">
                             <div class="collapse p-3" id="collapseInvoice{{ $invoice->id }}">
                                 <div class="card card-body border bg-white shadow-sm mb-2">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 class="fw-bold text-secondary m-0"><i class="bi bi-box-seam me-1"></i> Rincian Barang Terjual dalam Invoice {{ $invoice->referensi }}</h6>
-                                        <span class="badge bg-success-subtle text-success small">Data Otomatis Terhubung</span>
-                                    </div>
+                                    <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-box-seam me-1"></i> Rincian Barang Terjual Per Unit (Invoice: {{ $invoice->referensi }})</h6>
 
                                     <div class="table-responsive">
                                         <table class="table table-sm table-bordered align-middle mb-0">
@@ -132,8 +168,9 @@
                                                     <th>Via</th>
                                                     <th>Tgl Beli</th>
                                                     <th>Total Modal</th>
+                                                    <th>Harga Jual</th>
+                                                    <th>Total Profit</th>
                                                     <th>Lampiran</th>
-                                                    <th class="text-center" style="width: 80px;">Aksi</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -141,17 +178,19 @@
                                                 <tr>
                                                     <td class="text-center text-muted">{{ $pIdx + 1 }}</td>
                                                     <td>
-                                                        <strong>{{ $pItem['nama_barang'] ?? '-' }}</strong>
+                                                        <strong>{{ $pItem['nama_barang'] }}</strong>
                                                         @if(!empty($pItem['nama_device']))
                                                         <br><small class="text-primary fw-semibold"><i class="bi bi-phone"></i> {{ $pItem['nama_device'] }}</small>
                                                         @endif
-                                                        <br><small class="text-muted"><i class="bi bi-shop"></i> {{ $pItem['nama_toko'] ?? '-' }}</small>
+                                                        <br><small class="text-muted"><i class="bi bi-shop"></i> {{ $pItem['nama_toko'] }}</small>
                                                     </td>
                                                     <td>
                                                         @if(!empty($pItem['detail_imei']) && $pItem['detail_imei'] !== '-')
-                                                        <span class="badge bg-light text-dark border font-monospace">{{ $pItem['detail_imei'] }}</span>
+                                                        <span style="font-family: monospace; font-size: 0.8rem;" class="text-dark bg-light px-2 py-1 rounded border d-inline-block">
+                                                            {{ $pItem['detail_imei'] }}
+                                                        </span>
                                                         @else
-                                                        <span class="text-muted small fst-italic">Tidak ada IMEI</span>
+                                                        <span class="text-muted small">-</span>
                                                         @endif
                                                     </td>
                                                     <td>
@@ -168,7 +207,14 @@
                                                         <span class="badge {{ $badgeColor }}">{{ $viaVal }}</span>
                                                     </td>
                                                     <td>{{ isset($pItem['tanggal_beli']) ? \Carbon\Carbon::parse($pItem['tanggal_beli'])->format('d/m/Y') : '-' }}</td>
-                                                    <td class="fw-bold">Rp {{ number_format($pItem['total_modal'] ?? 0, 0, ',', '.') }}</td>
+                                                    <!-- Total Modal -->
+                                                    <td class="fw-bold text-secondary">Rp {{ number_format($pItem['total_modal'], 0, ',', '.') }}</td>
+                                                    <!-- Harga Jual -->
+                                                    <td class="fw-bold text-success">Rp {{ number_format($pItem['harga_jual'], 0, ',', '.') }}</td>
+                                                    <!-- Total Profit -->
+                                                    <td class="fw-bold {{ $pItem['total_profit'] >= 0 ? 'text-primary' : 'text-danger' }}">
+                                                        Rp {{ number_format($pItem['total_profit'], 0, ',', '.') }}
+                                                    </td>
                                                     <td>
                                                         @if(!empty($pItem['file_lampiran']) && is_array($pItem['file_lampiran']) && count($pItem['file_lampiran']) > 0)
                                                         <div class="d-flex flex-wrap gap-1">
@@ -184,81 +230,22 @@
                                                         <span class="text-muted small">-</span>
                                                         @endif
                                                     </td>
-                                                    <td class="text-center">
-                                                        <button type="button" class="btn btn-sm btn-warning text-white" data-bs-toggle="modal" data-bs-target="#modalEditHistori{{ $invoice->id }}_{{ $pIdx }}" title="Koreksi Data">
-                                                            <i class="bi bi-pencil-square"></i>
-                                                        </button>
-                                                    </td>
                                                 </tr>
-
-                                                <!-- Modal Edit Rincian Item Histori -->
-                                                <div class="modal fade" id="modalEditHistori{{ $invoice->id }}_{{ $pIdx }}" tabindex="-1" aria-hidden="true">
-                                                    <div class="modal-dialog">
-                                                        <div class="modal-content text-start">
-                                                            <div class="modal-header">
-                                                                <h5 class="modal-title fw-bold">Koreksi Data Item ({{ $invoice->referensi }})</h5>
-                                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                            </div>
-                                                            <form action="{{ route('penjualan.update-histori-item', $invoice->id) }}" method="POST">
-                                                                @csrf
-                                                                @method('PUT')
-                                                                <div class="modal-body">
-                                                                    <input type="hidden" name="item_index" value="{{ $pIdx }}">
-
-                                                                    <div class="mb-3">
-                                                                        <label class="form-label">Nama Barang</label>
-                                                                        <input type="text" name="nama_barang" class="form-control" value="{{ $pItem['nama_barang'] ?? '' }}" required>
-                                                                    </div>
-
-                                                                    <div class="mb-3">
-                                                                        <label class="form-label">Nama Device (Opsional)</label>
-                                                                        <input type="text" name="nama_device" class="form-control" value="{{ $pItem['nama_device'] ?? '' }}">
-                                                                    </div>
-
-                                                                    <div class="mb-3">
-                                                                        <label class="form-label">Nama Toko Asal</label>
-                                                                        <input type="text" name="nama_toko" class="form-control" value="{{ $pItem['nama_toko'] ?? '' }}" required>
-                                                                    </div>
-
-                                                                    <div class="mb-3">
-                                                                        <label class="form-label">Via Pembelian</label>
-                                                                        <input type="text" name="via" class="form-control" value="{{ $pItem['via'] ?? '' }}" required>
-                                                                    </div>
-
-                                                                    <div class="mb-3">
-                                                                        <label class="form-label">Nomor IMEI / Serial</label>
-                                                                        <input type="text" name="detail_imei" class="form-control font-monospace" value="{{ $pItem['detail_imei'] ?? '' }}">
-                                                                    </div>
-
-                                                                    <div class="mb-3">
-                                                                        <label class="form-label">Total Modal / Harga (Rp)</label>
-                                                                        <input type="number" name="total_modal" class="form-control" value="{{ $pItem['total_modal'] ?? 0 }}" required>
-                                                                    </div>
-                                                                </div>
-                                                                <div class="modal-footer">
-                                                                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
-                                                                    <button type="submit" class="btn btn-warning text-white fw-semibold">Simpan Perubahan</button>
-                                                                </div>
-                                                            </form>
-                                                        </div>
-                                                    </div>
-                                                </div>
                                                 @empty
                                                 <tr>
-                                                    <td colspan="8" class="text-center text-muted py-2">Tidak ada rincian barang.</td>
+                                                    <td colspan="9" class="text-center text-muted py-2">Tidak ada rincian barang.</td>
                                                 </tr>
                                                 @endforelse
                                             </tbody>
                                         </table>
                                     </div>
-
                                 </div>
                             </div>
                         </td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" class="text-center py-4 text-muted">Belum ada histori penjualan / invoice yang diterbitkan.</td>
+                        <td colspan="7" class="text-center py-4 text-muted">Belum ada histori penjualan.</td>
                     </tr>
                     @endforelse
                 </tbody>

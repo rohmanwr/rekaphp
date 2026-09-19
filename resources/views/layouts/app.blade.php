@@ -8,13 +8,18 @@
 
     <title>@yield('title', 'Rekap Bisnis HP')</title>
 
-    <!-- Bootstrap 5 CSS & Icons via CDN (Tanpa Vite/NPM) -->
+    <!-- Bootstrap 5 CSS & Icons via CDN -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 
     <style>
+        :root {
+            --sidebar-width: 260px;
+            --primary-bg: #f4f6f9;
+        }
+
         body {
-            background-color: #f4f6f9;
+            background-color: var(--primary-bg);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow-x: hidden;
         }
@@ -26,67 +31,94 @@
             position: relative;
         }
 
-        /* Sidebar Base Styling */
+        /* Sidebar Styling Modern & Responsive */
         #sidebar {
-            min-width: 250px;
-            max-width: 250px;
-            background: #212529;
+            min-width: var(--sidebar-width);
+            max-width: var(--sidebar-width);
+            background: linear-gradient(180deg, #1e2229 0%, #111315 100%);
             color: #fff;
-            transition: all 0.3s ease-in-out;
-            z-index: 1045;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1050;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 4px 0 15px rgba(0, 0, 0, 0.05);
         }
 
         #sidebar .sidebar-header {
-            padding: 20px;
-            background: #1a1d20;
+            padding: 22px 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
 
         #sidebar ul.components {
-            padding: 15px 0;
+            padding: 15px 12px;
+            margin: 0;
+            flex: 1;
+            overflow-y: auto;
         }
 
         #sidebar ul li.sidebar-heading {
-            padding: 10px 20px 5px;
-            font-size: 0.75rem;
+            padding: 15px 15px 8px;
+            font-size: 0.72rem;
             text-transform: uppercase;
             font-weight: 700;
-            color: #6c757d;
-            letter-spacing: 0.5px;
+            color: #8b95a5;
+            letter-spacing: 0.8px;
+        }
+
+        #sidebar ul li {
+            margin-bottom: 4px;
         }
 
         #sidebar ul li a {
-            padding: 12px 20px;
-            font-size: 0.95rem;
+            padding: 11px 16px;
+            font-size: 0.92rem;
             display: flex;
             align-items: center;
-            color: #ced4da;
+            color: #b0c4de;
             text-decoration: none;
-            transition: all 0.2s;
+            border-radius: 8px;
+            transition: all 0.2s ease-in-out;
+            position: relative;
+            /* Mencegah propagasi event klik ganda/tumpang tindih */
+            pointer-events: auto;
         }
 
-        #sidebar ul li a:hover,
+        #sidebar ul li a:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.06);
+            transform: translateX(3px);
+        }
+
         #sidebar ul li a.active {
-            color: #fff;
+            color: #ffffff;
             background: #0d6efd;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(13, 110, 253, 0.35);
         }
 
         #sidebar ul li a i {
             margin-right: 12px;
             font-size: 1.1rem;
+            width: 20px;
+            text-align: center;
         }
 
+        /* Content Area */
         #content {
             width: 100%;
-            padding: 20px;
+            padding: 24px;
             min-height: 100vh;
             transition: all 0.3s ease-in-out;
+            display: flex;
+            flex-direction: column;
         }
 
         .user-dropdown .dropdown-toggle::after {
             display: none;
         }
 
-        /* Sidebar Overlay / Backdrop untuk Tampilan Mobile */
+        /* Sidebar Backdrop / Overlay untuk Mobile */
         .sidebar-overlay {
             display: none;
             position: fixed;
@@ -95,31 +127,34 @@
             width: 100vw;
             height: 100vh;
             background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(2px);
             z-index: 1040;
-            transition: all 0.3s ease-in-out;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
         }
 
         .sidebar-overlay.show {
             display: block;
+            opacity: 1;
         }
 
-        /* Responsive Breakpoints untuk Android / Layar Kecil (< 992px) */
+        /* Responsive Breakpoints (< 992px / Mobile & Tablet) */
         @media (max-width: 991.98px) {
             #sidebar {
                 position: fixed;
                 top: 0;
-                left: -250px;
+                left: calc(-1 * var(--sidebar-width));
                 height: 100vh;
-                overflow-y: auto;
+                box-shadow: none;
             }
 
             #sidebar.active {
                 left: 0;
-                box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+                box-shadow: 8px 0 25px rgba(0, 0, 0, 0.4);
             }
 
             #content {
-                padding: 15px;
+                padding: 16px;
             }
         }
     </style>
@@ -136,20 +171,20 @@
             <div class="sidebar-header d-flex align-items-center justify-content-between">
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-phone-vibrate text-warning fs-4"></i>
-                    <h5 class="mb-0 fw-bold text-white">Rekap HP</h5>
+                    <h5 class="mb-0 fw-bold text-white tracking-wide">Rekap HP</h5>
                 </div>
-                <button type="button" id="closeSidebarBtn" class="btn btn-link text-white-50 d-lg-none p-0 border-0">
+                <button type="button" id="closeSidebarBtn" class="btn btn-link text-white-50 d-lg-none p-0 border-0" aria-label="Tutup Menu">
                     <i class="bi bi-x-lg fs-5"></i>
                 </button>
             </div>
 
             <div class="p-3">
                 @if(Route::has('pembelian.create'))
-                <a href="{{ route('pembelian.create') }}" class="btn btn-warning w-100 fw-bold text-dark d-flex align-items-center justify-content-center gap-2">
+                <a href="{{ route('pembelian.create') }}" class="btn btn-warning w-100 fw-bold text-dark shadow-sm py-2 d-flex align-items-center justify-content-center gap-2 rounded-3">
                     <i class="bi bi-plus-circle-fill"></i> Tambah Pembelian
                 </a>
                 @else
-                <a href="{{ url('/pembelian/create') }}" class="btn btn-warning w-100 fw-bold text-dark d-flex align-items-center justify-content-center gap-2">
+                <a href="{{ url('/pembelian/create') }}" class="btn btn-warning w-100 fw-bold text-dark shadow-sm py-2 d-flex align-items-center justify-content-center gap-2 rounded-3">
                     <i class="bi bi-plus-circle-fill"></i> Tambah Pembelian
                 </a>
                 @endif
@@ -162,8 +197,13 @@
                     </a>
                 </li>
                 <li>
-                    <a href="{{ route('pembelian.index') }}" class="{{ request()->routeIs('pembelian.*') && !request()->routeIs('pembelian.create') && !request()->routeIs('pembelian.siap_jual') ? 'active' : '' }}">
+                    <a href="{{ route('pembelian.index') }}" class="{{ request()->routeIs('pembelian.*') && !request()->routeIs('pembelian.create') && !request()->routeIs('pembelian.siap_jual') && !request()->routeIs('pembelian.histori_rekap') ? 'active' : '' }}">
                         <i class="bi bi-cart-check"></i> Rekap Pembelian
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ route('pembelian.histori_rekap') }}" class="{{ request()->routeIs('pembelian.histori_rekap') ? 'active' : '' }}">
+                        <i class="bi bi-clock-history text-info"></i> Histori Rekap
                     </a>
                 </li>
                 <!-- Menu Siap Jual -->
@@ -172,15 +212,15 @@
                         <i class="bi bi-box-seam-fill text-warning"></i> Siap Jual
                     </a>
                 </li>
-                <!-- Menu Histori Penjualan Tunggal (Tanpa Dropdown) -->
+                <!-- Menu Histori Penjualan -->
                 <li>
                     <a href="{{ route('penjualan.histori') }}" class="{{ request()->routeIs('penjualan.histori') ? 'active' : '' }}">
-                        <i class="bi bi-clock-history"></i> Histori Penjualan
+                        <i class="bi bi-receipt-cutoff"></i> Histori Penjualan
                     </a>
                 </li>
 
                 <!-- Section Master Data -->
-                <li class="sidebar-heading mt-2">Master Data</li>
+                <li class="sidebar-heading mt-3">Master Data</li>
                 <li>
                     <a href="{{ route('barang.index') }}" class="{{ request()->routeIs('barang.*') ? 'active' : '' }}">
                         <i class="bi bi-tags"></i> Nama Barang
@@ -199,10 +239,10 @@
         <!-- Page Content -->
         <div id="content">
             <!-- Top Navbar Header -->
-            <nav class="navbar navbar-expand-lg navbar-light bg-white rounded shadow-sm mb-4 px-3 py-2">
+            <nav class="navbar navbar-expand-lg navbar-light bg-white rounded-3 shadow-sm mb-4 px-3 py-2">
                 <div class="container-fluid p-0 d-flex align-items-center justify-content-between">
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" id="toggleSidebarBtn" class="btn btn-light border p-2 me-1" title="Buka Menu">
+                        <button type="button" id="toggleSidebarBtn" class="btn btn-light border p-2 me-1" title="Buka Menu" aria-label="Toggle Menu">
                             <i class="bi bi-list fs-5"></i>
                         </button>
                         <span class="navbar-text fw-semibold text-dark small-mobile">
@@ -212,12 +252,12 @@
 
                     @auth
                     <div class="dropdown user-dropdown">
-                        <button class="btn btn-light dropdown-toggle d-flex align-items-center gap-2 border" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <button class="btn btn-light dropdown-toggle d-flex align-items-center gap-2 border py-1.5 px-3 rounded-pill" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-person-circle fs-5 text-secondary"></i>
                             <span class="fw-semibold small d-none d-sm-inline">{{ Auth::user()->name }}</span>
                             <i class="bi bi-chevron-down small text-muted"></i>
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow border-0">
+                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2 rounded-3">
                             @if(Route::has('profile.edit'))
                             <li>
                                 <a class="dropdown-item py-2" href="{{ route('profile.edit') }}">
@@ -250,7 +290,7 @@
     <!-- Bootstrap 5 JS Bundle via CDN -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Script Toggle Responsive Sidebar -->
+    <!-- Script Toggle Responsive Sidebar yang Dioptimalkan -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const sidebar = document.getElementById('sidebar');
@@ -269,7 +309,8 @@
             }
 
             if (toggleSidebarBtn) {
-                toggleSidebarBtn.addEventListener('click', function() {
+                toggleSidebarBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
                     if (sidebar.classList.contains('active')) {
                         closeSidebar();
                     } else {
@@ -279,12 +320,27 @@
             }
 
             if (closeSidebarBtn) {
-                closeSidebarBtn.addEventListener('click', closeSidebar);
+                closeSidebarBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    closeSidebar();
+                });
             }
 
             if (sidebarOverlay) {
-                sidebarOverlay.addEventListener('click', closeSidebar);
+                sidebarOverlay.addEventListener('click', function() {
+                    closeSidebar();
+                });
             }
+
+            // Tutup sidebar otomatis saat link di dalam sidebar diklik pada perangkat mobile
+            const sidebarLinks = sidebar.querySelectorAll('a');
+            sidebarLinks.forEach(link => {
+                link.addEventListener('click', function() {
+                    if (window.innerWidth < 992) {
+                        closeSidebar();
+                    }
+                });
+            });
         });
     </script>
 </body>

@@ -18,7 +18,8 @@ class PembelianController extends Controller
         $search = $request->input('search');
         $selectedStatus = $request->input('status');
 
-        $query = Pembelian::with('user');
+        // Sembunyikan data yang statusnya 'Jual' atau 'Selesai' dari rekap pembelian utama
+        $query = Pembelian::with('user')->whereNotIn('status', ['Jual', 'Selesai']);
 
         if (!empty($selectedStatus)) {
             $query->where('status', $selectedStatus);
@@ -64,7 +65,7 @@ class PembelianController extends Controller
             'via'             => 'required|string|max:255',
             'tanggal_beli'    => 'required|date',
             'total_modal'     => 'required',
-            'status'          => 'required|in:Belum Ready,Sudah Ready,Sudah Diambil,Bermasalah,Jual',
+            'status'          => 'required|in:Belum Ready,Sudah Ready,Sudah Diambil,Bermasalah,Jual,Selesai',
             'detail_imei'     => 'nullable|string',
             'file_lampiran.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
         ]);
@@ -91,7 +92,7 @@ class PembelianController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:Belum Ready,Sudah Ready,Sudah Diambil,Bermasalah,Jual',
+            'status' => 'required|in:Belum Ready,Sudah Ready,Sudah Diambil,Bermasalah,Jual,Selesai',
         ]);
 
         $pembelian = Pembelian::findOrFail($id);
@@ -112,7 +113,7 @@ class PembelianController extends Controller
             'via'          => 'required|string|max:255',
             'tanggal_beli' => 'required|date',
             'total_modal'  => 'required',
-            'status'       => 'required|in:Belum Ready,Sudah Ready,Sudah Diambil,Bermasalah,Jual',
+            'status'       => 'required|in:Belum Ready,Sudah Ready,Sudah Diambil,Bermasalah,Jual,Selesai',
             'detail_imei'  => 'nullable|string',
         ]);
 
@@ -159,6 +160,64 @@ class PembelianController extends Controller
         return redirect()->route('pembelian.index')->with('success', 'Data Pembelian berhasil dihapus!');
     }
 
+    public function historiRekap(Request $request)
+    {
+        $search = $request->input('search');
+
+        // Ambil data pembelian yang statusnya sudah Selesai
+        $pembelians = Pembelian::where('status', 'Selesai')
+            ->when($search, function ($query, $search) {
+                return $query->where(function ($q) use ($search) {
+                    $q->where('kode_manual', 'like', "%{$search}%")
+                        ->orWhere('kode_otomatis', 'like', "%{$search}%")
+                        ->orWhere('nama_barang', 'like', "%{$search}%")
+                        ->orWhere('nama_toko', 'like', "%{$search}%")
+                        ->orWhere('detail_imei', 'like', "%{$search}%")
+                        ->orWhere('no_invoice', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy('updated_at', 'desc')
+            ->paginate(10);
+
+        // Tarik Tanggal Terbit, No Invoice, Harga Jual, dan Profit secara dinamis dari tabel Invoices
+        foreach ($pembelians as $item) {
+            // Inisialisasi default nilai harga & profit jika belum ada
+            $item->harga_jual = $item->harga_jual ?? 0;
+            $item->total_profit = $item->total_profit ?? ($item->harga_jual - $item->total_modal);
+
+            if (empty($item->no_invoice) || empty($item->tanggal_terbit) || $item->harga_jual == 0) {
+                $invoices = Invoice::all();
+                foreach ($invoices as $inv) {
+                    $found = false;
+
+                    // Cek melalui pembelian_data jika ada
+                    if (!empty($inv->pembelian_data) && is_array($inv->pembelian_data)) {
+                        foreach ($inv->pembelian_data as $snap) {
+                            if (
+                                (isset($snap['pembelian_id']) && $snap['pembelian_id'] == $item->id) ||
+                                (isset($snap['detail_imei']) && $snap['detail_imei'] == $item->detail_imei && !empty($item->detail_imei))
+                            ) {
+                                $found = true;
+                                $item->no_invoice = $inv->referensi;
+                                $item->tanggal_terbit = $inv->tanggal;
+                                // Ambil harga jual dan profit yang terkunci di invoice tersebut
+                                $item->harga_jual = $snap['harga_jual'] ?? 0;
+                                $item->total_profit = $snap['total_profit'] ?? ($item->harga_jual - $item->total_modal);
+                                break;
+                            }
+                        }
+                    }
+
+                    if ($found) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        return view('pembelian.histori_rekap', compact('pembelians', 'search'));
+    }
+
     public function barangSiapJual(Request $request)
     {
         $search = $request->input('search');
@@ -173,7 +232,7 @@ class PembelianController extends Controller
                 });
             })
             ->latest()
-            ->get();
+            ->paginate(10);
 
         $barangs = Barang::all()->keyBy('nama_barang');
 
@@ -258,11 +317,11 @@ class PembelianController extends Controller
             } else if ($nilai < 100) {
                 $temp = $penyebut((int)($nilai / 10)) . " Puluh" . $penyebut($nilai % 10);
             } else if ($nilai < 200) {
-                $temp = " Seratus" . $penyebut($nilai - 100);
+                $temp = $penyebut((int)($nilai / 100)) . " Ratus" . $penyebut($nilai % 100);
             } else if ($nilai < 1000) {
                 $temp = $penyebut((int)($nilai / 100)) . " Ratus" . $penyebut($nilai % 100);
             } else if ($nilai < 2000) {
-                $temp = " Seribu" . $penyebut($nilai - 1000);
+                $temp = $penyebut((int)($nilai / 1000)) . " Seribu" . $penyebut($nilai - 1000);
             } else if ($nilai < 1000000) {
                 $temp = $penyebut((int)($nilai / 1000)) . " Ribu" . $penyebut($nilai % 1000);
             } else if ($nilai < 1000000000) {
@@ -278,29 +337,43 @@ class PembelianController extends Controller
         // Kumpulkan ID pembelian yang dipilih
         $allPembelianIds = [];
         foreach ($request->items as $item) {
-            if (isset($item['pembelian_ids'])) {
+            if (isset($item['pembelian_ids']) && is_array($item['pembelian_ids'])) {
                 foreach ($item['pembelian_ids'] as $pId) {
                     $allPembelianIds[] = $pId;
                 }
             }
         }
+        $allPembelianIds = array_unique($allPembelianIds);
 
-        // Ambil data pembelian asli sebelum dihapus
+        // Ambil data pembelian asli
         $pembelianItems = Pembelian::whereIn('id', $allPembelianIds)->get();
 
-        // Bentuk snapshot array secara eksplisit agar aman terbaca di Histori Penjualan
+        // Bentuk snapshot array secara lengkap dan AMBIL HARGA JUAL LANGSUNG DARI PRINT INVOICE ($request->items)
         $snapshotItems = [];
-        foreach ($pembelianItems as $pItem) {
-            $snapshotItems[] = [
-                'nama_barang'   => $pItem->nama_barang,
-                'nama_device'   => $pItem->nama_device ?? null,
-                'nama_toko'     => $pItem->nama_toko,
-                'via'           => $pItem->via,
-                'detail_imei'   => $pItem->detail_imei ?? '-',
-                'tanggal_beli'  => $pItem->tanggal_beli,
-                'total_modal'   => $pItem->total_modal,
-                'file_lampiran' => $pItem->file_lampiran ?? [],
-            ];
+        foreach ($request->items as $invItem) {
+            $pIds = $invItem['pembelian_ids'] ?? [];
+            $matchedPembelians = $pembelianItems->whereIn('id', $pIds);
+
+            // Ambil harga jual satuan yang diinput/tercetak pada form invoice
+            $hargaJualSatuan = isset($invItem['harga']) ? (float) $invItem['harga'] : 0;
+
+            foreach ($matchedPembelians as $pItem) {
+                $modalItem = (float) ($pItem->total_modal ?? 0);
+
+                $snapshotItems[] = [
+                    'pembelian_id'  => $pItem->id,
+                    'nama_barang'   => $pItem->nama_barang,
+                    'nama_device'   => $pItem->nama_device ?? null,
+                    'nama_toko'     => $pItem->nama_toko,
+                    'via'           => $pItem->via,
+                    'detail_imei'   => $pItem->detail_imei ?? '-',
+                    'tanggal_beli'  => $pItem->tanggal_beli,
+                    'total_modal'   => $modalItem,
+                    'harga_jual'    => $hargaJualSatuan, // <--- TERKUNCI PERSIS SEPERTI PRINT INVOICE!
+                    'total_profit'  => $hargaJualSatuan - $modalItem,
+                    'file_lampiran' => $pItem->file_lampiran ?? [],
+                ];
+            }
         }
 
         $invoice = Invoice::create([
@@ -310,30 +383,55 @@ class PembelianController extends Controller
             'nama_pelanggan'   => $request->nama_pelanggan,
             'alamat_pelanggan' => $request->alamat_pelanggan ?? 'DKI Jakarta',
             'items'            => $request->items,
-            'pembelian_data'   => $snapshotItems, // Snapshot tersimpan rapi
+            'pembelian_data'   => $snapshotItems,
             'subtotal'         => $subtotal,
             'total'            => $subtotal,
             'terbilang'        => $terbilangStr,
         ]);
 
-        // HAPUS DATA DARI TABEL PEMBELIAN SETELAH INVOICE DITERBITKAN
+        // UBAH STATUS MENJADI 'Selesai' SERTA CATAT TANGGAL TERBIT DAN NO INVOICE
         if (!empty($allPembelianIds)) {
-            foreach ($pembelianItems as $pItem) {
-                if (!empty($pItem->file_lampiran)) {
-                    foreach ($pItem->file_lampiran as $filePath) {
-                        Storage::disk('public')->delete($filePath);
-                    }
-                }
-                $pItem->delete();
-            }
+            Pembelian::whereIn('id', $allPembelianIds)->update([
+                'status'         => 'Selesai',
+                'tanggal_terbit' => $request->tanggal,
+                'no_invoice'     => $request->referensi,
+            ]);
         }
 
-        return redirect()->route('invoice.show', $invoice->id)->with('success', 'Invoice berhasil diterbitkan dan data otomatis terhapus dari rekap pembelian!');
+        return redirect()->route('invoice.show', $invoice->id)->with('success', 'Invoice berhasil diterbitkan dan harga jual terkunci sesuai print!');
     }
 
     public function showInvoice($id)
     {
         $invoice = Invoice::findOrFail($id);
         return view('pembelian.print_invoice', compact('invoice'));
+    }
+
+    public function restoreStatus(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'required|in:Belum Ready,Sudah Ready,Sudah Diambil,Bermasalah,Jual,Selesai',
+        ]);
+
+        $pembelian = Pembelian::findOrFail($id);
+
+        $updateData = ['status' => $request->status];
+
+        // Jika dikembalikan ke status selain Selesai, bersihkan data tanggal terbit dan no_invoice
+        if ($request->status !== 'Selesai') {
+            $updateData['tanggal_terbit'] = null;
+            $updateData['no_invoice'] = null;
+        }
+
+        $pembelian->update($updateData);
+
+        return redirect()->back()->with('success', 'Status berhasil dikembalikan!');
+    }
+    public function historiPenjualan(Request $request)
+    {
+        // Mengambil seluruh arsip invoice tanpa batas
+        $invoices = Invoice::latest()->get();
+
+        return view('penjualan.histori', compact('invoices'));
     }
 }

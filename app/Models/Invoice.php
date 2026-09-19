@@ -16,6 +16,7 @@ class Invoice extends Model
         'nama_pelanggan',
         'alamat_pelanggan',
         'items',
+        'pembelian_data', // Ditambahkan agar data snapshot pembelian tersimpan dengan benar
         'subtotal',
         'total',
         'bank_info',
@@ -24,5 +25,8 @@ class Invoice extends Model
 
     protected $casts = [
         'items' => 'array',
+        'pembelian_data' => 'array', // Ditambahkan agar otomatis dibaca sebagai array oleh Laravel
+        'tanggal' => 'date',
+        'jatuh_tempo' => 'date',
     ];
 }

@@ -19,7 +19,8 @@ class PenjualanController extends Controller
     {
         $search = $request->input('search');
 
-        $barangs = Barang::orderBy('nama_barang', 'asc')->get();
+        // Gunakan keyBy('nama_barang') agar $barangs[$item->nama_barang] bisa langsung diakses
+        $barangs = Barang::orderBy('nama_barang', 'asc')->get()->keyBy('nama_barang');
         $tokos   = Toko::orderBy('nama_toko', 'asc')->get();
         $devices = Device::orderBy('nama_device', 'asc')->get();
 
@@ -37,11 +38,13 @@ class PenjualanController extends Controller
             ->latest()
             ->get();
 
-        return view('penjualan.siap_jual', compact('siapJualBarangs', 'search', 'barangs', 'tokos', 'devices'));
-    }
+        // Ubah variabel $siapJualBarangs menjadi $pembelians agar cocok dengan Blade view Anda
+        $pembelians = $siapJualBarangs;
 
+        return view('penjualan.siap_jual', compact('pembelians', 'search', 'barangs', 'tokos', 'devices'));
+    }
     /**
-     * Menampilkan menu Histori Penjualan dengan Perbaikan Data Lama (Fallback Aman)
+     * Menampilkan menu Histori Penjualan dengan Mutlak Lock Harga Invoice (Tanpa Mengubah Master)
      */
     public function historiPenjualan(Request $request)
     {
@@ -54,63 +57,104 @@ class PenjualanController extends Controller
             ->latest()
             ->get();
 
-        // Normalisasi data lama dan baru agar selalu terbaca sempurna di View Histori
         foreach ($invoices as $invoice) {
-            // Jika pembelian_data kosong, coba ambil dari items atau buat struktur default
-            if (empty($invoice->pembelian_data) || !is_array($invoice->pembelian_data)) {
-                $sourceItems = !empty($invoice->items) && is_array($invoice->items) ? $invoice->items : [];
-                $normalizedItems = [];
+            $sourceItems = !empty($invoice->pembelian_data) && is_array($invoice->pembelian_data)
+                ? $invoice->pembelian_data
+                : (!empty($invoice->items) && is_array($invoice->items) ? $invoice->items : []);
 
-                foreach ($sourceItems as $it) {
-                    // Tangani berbagai variasi key dari data lama
-                    $imeiVal = '';
-                    if (isset($it['detail_imei']) && !empty($it['detail_imei'])) {
-                        $imeiVal = $it['detail_imei'];
-                    } elseif (isset($it['imei']) && !empty($it['imei'])) {
-                        $imeiVal = $it['imei'];
-                    } elseif (isset($it['imei_list']) && is_array($it['imei_list'])) {
-                        $imeiVal = implode(', ', $it['imei_list']);
-                    } else {
-                        $imeiVal = '-';
-                    }
+            $normalizedItems = [];
+            $dataHasChanged = false;
 
-                    $normalizedItems[] = [
-                        'nama_barang'   => $it['nama_barang'] ?? ($it['deskripsi'] ?? 'Barang Invoice'),
-                        'nama_device'   => $it['nama_device'] ?? null,
-                        'nama_toko'     => $it['nama_toko'] ?? ($it['toko'] ?? '-'),
-                        'via'           => $it['via'] ?? '-',
-                        'detail_imei'   => $imeiVal,
-                        'tanggal_beli'  => $it['tanggal_beli'] ?? $invoice->tanggal,
-                        'total_modal'   => $it['total_modal'] ?? ($it['jumlah'] ?? ($invoice->total ?? 0)),
-                        'file_lampiran' => $it['file_lampiran'] ?? [],
-                    ];
+            foreach ($sourceItems as $it) {
+                $namaBarang = $it['nama_barang'] ?? ($it['deskripsi'] ?? 'Barang Invoice');
+
+                $imeiVal = '-';
+                if (isset($it['detail_imei']) && !empty($it['detail_imei'])) {
+                    $imeiVal = $it['detail_imei'];
+                } elseif (isset($it['imei']) && !empty($it['imei'])) {
+                    $imeiVal = $it['imei'];
+                } elseif (isset($it['deskripsi_imei']) && !empty($it['deskripsi_imei'])) {
+                    $imeiVal = $it['deskripsi_imei'];
+                } elseif (isset($it['imei_list']) && is_array($it['imei_list'])) {
+                    $imeiVal = implode("\n", $it['imei_list']);
                 }
 
-                // Jika items juga kosong total, buat minimal 1 baris placeholder dari data invoice utama
-                if (empty($normalizedItems)) {
-                    $normalizedItems[] = [
-                        'nama_barang'   => 'Barang Transaksi (Data Lama)',
-                        'nama_device'   => null,
-                        'nama_toko'     => '-',
-                        'via'           => '-',
-                        'detail_imei'   => '-',
-                        'tanggal_beli'  => $invoice->tanggal,
-                        'total_modal'   => $invoice->total ?? 0,
-                        'file_lampiran' => [],
-                    ];
+                $tokoVal = $it['nama_toko'] ?? ($it['toko'] ?? '-');
+                $viaVal = $it['via'] ?? ($it['platform'] ?? '-');
+                $tglBeliVal = $it['tanggal_beli'] ?? $invoice->tanggal;
+                $lampiranVal = $it['file_lampiran'] ?? [];
+
+                // Cari data asli ke tabel Pembelian untuk Total Modal mutlak
+                $pembelianRecord = null;
+                if (isset($it['pembelian_ids']) && is_array($it['pembelian_ids']) && count($it['pembelian_ids']) > 0) {
+                    $pembelianRecord = Pembelian::whereIn('id', $it['pembelian_ids'])->first();
+                } else {
+                    $pembelianRecord = Pembelian::where('nama_barang', 'like', "%{$namaBarang}%")
+                        ->orderBy('tanggal_beli', 'desc')
+                        ->first();
                 }
 
+                $modalVal = 0;
+                if ($pembelianRecord && !empty($pembelianRecord->total_modal)) {
+                    $modalVal = $pembelianRecord->total_modal;
+                } else {
+                    $modalVal = $it['total_modal'] ?? 0;
+                }
+
+                if ($pembelianRecord) {
+                    if ($imeiVal === '-' || empty($imeiVal)) $imeiVal = $pembelianRecord->detail_imei ?? '-';
+                    if ($tokoVal === '-' || empty($tokoVal)) $tokoVal = $pembelianRecord->nama_toko ?? '-';
+                    if ($viaVal === '-' || empty($viaVal)) $viaVal = $pembelianRecord->via ?? '-';
+                    if (empty($lampiranVal)) $lampiranVal = $pembelianRecord->file_lampiran ?? [];
+                    if (empty($tglBeliVal)) $tglBeliVal = $pembelianRecord->tanggal_beli;
+                }
+
+                // =========================================================================
+                // PENGUNCIAN HARGA JUAL HISTORIS MUTLAK (TIDAK LAGI MEMBACA MASTER BARANG)
+                // =========================================================================
+                $hargaJualVal = 0;
+                if (isset($it['harga_jual']) && is_numeric($it['harga_jual'])) {
+                    $hargaJualVal = (float) $it['harga_jual'];
+                } elseif (isset($it['harga']) && is_numeric($it['harga'])) {
+                    $hargaJualVal = (float) $it['harga'];
+                } elseif (isset($it['jumlah']) && isset($it['kuantitas']) && $it['kuantitas'] > 0) {
+                    $hargaJualVal = (float) ($it['jumlah'] / $it['kuantitas']);
+                } elseif (isset($it['jumlah']) && is_numeric($it['jumlah'])) {
+                    $hargaJualVal = (float) $it['jumlah'];
+                } else {
+                    $hargaJualVal = 0; // Kunci tetap 0 jika memang tidak ada data historis, TANPA mencarinya ke master barang
+                }
+
+                // Hitung Total Profit = Harga Jual - Total Modal
+                $profitVal = $hargaJualVal - $modalVal;
+
+                if (!isset($it['harga_jual']) || $it['harga_jual'] != $hargaJualVal) {
+                    $dataHasChanged = true;
+                }
+
+                $normalizedItems[] = [
+                    'nama_barang'   => $namaBarang,
+                    'nama_device'   => $it['nama_device'] ?? ($pembelianRecord->nama_device ?? null),
+                    'nama_toko'     => $tokoVal,
+                    'via'           => $viaVal,
+                    'detail_imei'   => $imeiVal,
+                    'tanggal_beli'  => $tglBeliVal,
+                    'total_modal'   => $modalVal,
+                    'harga_jual'    => $hargaJualVal, // Terkunci mutlak sesuai data cetak invoice
+                    'total_profit'  => $profitVal,
+                    'file_lampiran' => $lampiranVal,
+                ];
+            }
+
+            if ($dataHasChanged && !empty($normalizedItems)) {
                 $invoice->pembelian_data = $normalizedItems;
-                $invoice->save(); // Simpan permanen agar ke depannya langsung termuat cepat
+                $invoice->save();
             }
         }
 
         return view('penjualan.histori', compact('invoices', 'search'));
     }
 
-    /**
-     * Menampilkan menu Detail Barang (Status: "Sudah Diambil")
-     */
     public function detailBarang(Request $request)
     {
         $search = $request->input('search');
@@ -119,7 +163,7 @@ class PenjualanController extends Controller
         $tokos   = Toko::orderBy('nama_toko', 'asc')->get();
         $devices = Device::orderBy('nama_device', 'asc')->get();
 
-        $detailBarangs = Pembelian::where('status', 'Sudah Diambil')
+        $detailBarangs = Pembelian::where('status', 'Selesai')
             ->when($search, function ($query, $search) {
                 return $query->where(function ($q) use ($search) {
                     $q->where('kode_otomatis', 'like', "%{$search}%")
