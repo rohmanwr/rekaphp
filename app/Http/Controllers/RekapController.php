@@ -25,51 +25,54 @@ class RekapController extends Controller
 
         // ==========================================================
         // A. TOTAL QTY PEMBELIAN (Sesuai Histori Rekap / Status Selesai)
-        // Sesuaikan status dalam whereIn dengan status yang digunakan pada Histori Rekap Anda 
-        // (misal: 'Sudah Diambil', 'Selesai', atau status lainnya)
         // ==========================================================
-        $queryQtyPembelian = Pembelian::whereIn('status', ['Sudah Diambil', 'Selesai']);
         if (!empty($startDatePembelian) && !empty($endDatePembelian)) {
-            $queryQtyPembelian->whereBetween('tanggal_beli', [$startDatePembelian, $endDatePembelian]);
+            $queryQtyPembelian = Pembelian::whereIn('status', ['Sudah Diambil', 'Selesai'])
+                ->whereBetween('tanggal_beli', [$startDatePembelian, $endDatePembelian]);
+            $totalQtyPembelian = $queryQtyPembelian->count();
+        } else {
+            $totalQtyPembelian = 0; // Kembali ke 0 jika filter belum diisi / di-reset
         }
-        $totalQtyPembelian = $queryQtyPembelian->count();
 
         // ==========================================================
         // B. TOTAL NOMINAL PEMBELIAN (Modal)
         // ==========================================================
-        $queryNominalPembelian = Pembelian::query();
         if (!empty($startDateNominal) && !empty($endDateNominal)) {
-            $queryNominalPembelian->whereBetween('tanggal_beli', [$startDateNominal, $endDateNominal]);
+            $queryNominalPembelian = Pembelian::whereBetween('tanggal_beli', [$startDateNominal, $endDateNominal]);
+            $totalNominalPembelian = $queryNominalPembelian->sum('total_modal');
+        } else {
+            $totalNominalPembelian = 0; // Kembali ke 0 jika filter belum diisi / di-reset
         }
-        $totalNominalPembelian = $queryNominalPembelian->sum('total_modal');
 
         // ==========================================================
         // C. TOTAL PENJUALAN (Dari Tagihan Histori Penjualan / Invoices)
         // ==========================================================
-        $queryPenjualan = Invoice::query();
         if (!empty($startDatePenjualan) && !empty($endDatePenjualan)) {
-            $queryPenjualan->whereBetween('tanggal', [$startDatePenjualan, $endDatePenjualan]);
+            $queryPenjualan = Invoice::whereBetween('tanggal', [$startDatePenjualan, $endDatePenjualan]);
+            $totalPenjualan = $queryPenjualan->sum('total');
+        } else {
+            $totalPenjualan = 0; // Kembali ke 0 jika filter belum diisi / di-reset
         }
-        $totalPenjualan = $queryPenjualan->sum('total');
 
         // ==========================================================
         // D. TOTAL PROFIT
         // ==========================================================
-        $queryInvoiceProfit = Invoice::query();
-        if (!empty($startDateProfit) && !empty($endDateProfit)) {
-            $queryInvoiceProfit->whereBetween('tanggal', [$startDateProfit, $endDateProfit]);
-        }
-
         $totalProfit = 0;
-        $allInvoices = $queryInvoiceProfit->get();
-        foreach ($allInvoices as $inv) {
-            if (!empty($inv->pembelian_data) && is_array($inv->pembelian_data)) {
-                foreach ($inv->pembelian_data as $snap) {
-                    $modal = (float)($snap['total_modal'] ?? 0);
-                    $jual  = (float)($snap['harga_jual'] ?? 0);
-                    $totalProfit += ($jual - $modal);
+        if (!empty($startDateProfit) && !empty($endDateProfit)) {
+            $queryInvoiceProfit = Invoice::whereBetween('tanggal', [$startDateProfit, $endDateProfit]);
+            $allInvoices = $queryInvoiceProfit->get();
+
+            foreach ($allInvoices as $inv) {
+                if (!empty($inv->pembelian_data) && is_array($inv->pembelian_data)) {
+                    foreach ($inv->pembelian_data as $snap) {
+                        $modal = (float)($snap['total_modal'] ?? 0);
+                        $jual  = (float)($snap['harga_jual'] ?? 0);
+                        $totalProfit += ($jual - $modal);
+                    }
                 }
             }
+        } else {
+            $totalProfit = 0; // Kembali ke 0 jika filter belum diisi / di-reset
         }
 
         return view('rekap.index', compact(
