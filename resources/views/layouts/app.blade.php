@@ -233,6 +233,12 @@
                     </a>
                 </li>
                 @endif
+
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('user.index') ? 'active' : '' }}" href="{{ route('user.index') }}">
+                        <i class="bi bi-people-fill me-2"></i> Manajemen User
+                    </a>
+                </li>
             </ul>
         </nav>
 

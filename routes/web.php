@@ -7,15 +7,29 @@ use App\Http\Controllers\PembelianController;
 use App\Http\Controllers\BarangController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TokoController;
+use App\Http\Controllers\Auth\DirectPasswordResetController;
+use App\Http\Controllers\UserController;
+
 
 Route::get('/', function () {
     return redirect()->route('login');
 });
 
-// Route yang wajib LOGIN
+// ==========================================
+// ROUTE TAMU / GUEST (Belum Login / Ubah Password Langsung)
+// ==========================================
+Route::middleware('guest')->group(function () {
+    // Form Ubah Password Langsung (Tanpa Kirim Email)
+    Route::get('/forgot-password', [DirectPasswordResetController::class, 'create'])->name('password.request');
+    Route::post('/forgot-password', [DirectPasswordResetController::class, 'store'])->name('password.update.direct');
+});
+
+// ==========================================
+// ROUTE UTAMA (Wajib LOGIN & Terverifikasi)
+// ==========================================
 Route::middleware(['auth', 'verified'])->group(function () {
 
-    // Dashboard & Rekap (Dialihkan langsung ke RekapController agar metrik & filter tanggal berfungsi)
+    // Dashboard & Rekap
     Route::get('/dashboard', [RekapController::class, 'index'])->name('dashboard');
     Route::get('/rekap', [RekapController::class, 'index'])->name('rekap.index');
 
@@ -28,7 +42,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/pembelian/{id}', [PembelianController::class, 'destroy'])->name('pembelian.destroy');
     Route::get('/pembelian/siap-jual', [PembelianController::class, 'barangSiapJual'])->name('pembelian.siap_jual');
 
-    // Histori Rekap Pembelian & Restore Status (Ditambahkan kembali agar lengkap)
+    // Histori Rekap Pembelian & Restore Status
     Route::get('/pembelian/histori-rekap', [PembelianController::class, 'historiRekap'])->name('pembelian.histori_rekap');
     Route::patch('/pembelian/{id}/restore-status', [PembelianController::class, 'restoreStatus'])->name('pembelian.restoreStatus');
 
@@ -66,6 +80,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Update item histori penjualan secara manual
     Route::put('/penjualan/update-histori-item/{invoiceId}', [PenjualanController::class, 'updateHistoriItem'])->name('penjualan.update-histori-item');
+
+    Route::middleware(['auth'])->group(function () {
+        // Rute list user
+        Route::get('/users', [UserController::class, 'index'])->name('user.index');
+    });
 });
 
 require __DIR__ . '/auth.php';
