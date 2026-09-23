@@ -34,7 +34,8 @@
 <!-- Searchbar Filter -->
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body">
-        <form action="{{ route('penjualan.siap-jual') }}" method="GET">
+        <!-- PERBAIKAN: Ubah route menjadi pembelian.siap_jual -->
+        <form action="{{ route('pembelian.siap_jual') }}" method="GET">
             <div class="input-group">
                 <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
                 <input
@@ -45,7 +46,8 @@
                     value="{{ $search ?? '' }}"
                     autocomplete="off">
                 @if(!empty($search))
-                <a href="{{ route('penjualan.siap-jual') }}" class="btn btn-outline-secondary" title="Reset Pencarian">
+                <!-- PERBAIKAN: Ubah route reset juga menjadi pembelian.siap_jual -->
+                <a href="{{ route('pembelian.siap_jual') }}" class="btn btn-outline-secondary" title="Reset Pencarian">
                     <i class="bi bi-x-lg"></i> Reset
                 </a>
                 @endif

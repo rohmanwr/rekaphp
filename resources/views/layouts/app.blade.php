@@ -80,7 +80,6 @@
             border-radius: 8px;
             transition: all 0.2s ease-in-out;
             position: relative;
-            /* Mencegah propagasi event klik ganda/tumpang tindih */
             pointer-events: auto;
         }
 
@@ -178,7 +177,23 @@
                 </button>
             </div>
 
+            @php
+            $authUser = Auth::user();
+            $isAdmin = $authUser && strtolower($authUser->role) === 'admin';
+            $permissions = $authUser->permissions;
+            // Jika permissions null (belum pernah disimpan/user baru), dianggap aktif semua secara default
+            $isNewOrEmpty = is_null($permissions);
+
+            // Fungsi helper pengecekan hak akses per menu key
+            $canAccess = function($key) use ($isAdmin, $permissions, $isNewOrEmpty) {
+            if ($isAdmin) return true;
+            if ($isNewOrEmpty) return true;
+            return in_array($key, $permissions);
+            };
+            @endphp
+
             <div class="p-3">
+                @if($canAccess('pembelian'))
                 @if(Route::has('pembelian.create'))
                 <a href="{{ route('pembelian.create') }}" class="btn btn-warning w-100 fw-bold text-dark shadow-sm py-2 d-flex align-items-center justify-content-center gap-2 rounded-3">
                     <i class="bi bi-plus-circle-fill"></i> Tambah Pembelian
@@ -188,38 +203,55 @@
                     <i class="bi bi-plus-circle-fill"></i> Tambah Pembelian
                 </a>
                 @endif
+                @endif
             </div>
 
             <ul class="list-unstyled components">
+                <!-- Dashboard Selalu Muncul -->
                 <li>
                     <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'active' : '' }}">
                         <i class="bi bi-speedometer2"></i> Dashboard
                     </a>
                 </li>
+
+                <!-- Rekap Pembelian -->
+                @if($canAccess('pembelian'))
                 <li>
                     <a href="{{ route('pembelian.index') }}" class="{{ request()->routeIs('pembelian.*') && !request()->routeIs('pembelian.create') && !request()->routeIs('pembelian.siap_jual') && !request()->routeIs('pembelian.histori_rekap') ? 'active' : '' }}">
                         <i class="bi bi-cart-check"></i> Rekap Pembelian
                     </a>
                 </li>
+                @endif
+
+                <!-- Histori Rekap -->
+                @if($canAccess('histori_rekap'))
                 <li>
                     <a href="{{ route('pembelian.histori_rekap') }}" class="{{ request()->routeIs('pembelian.histori_rekap') ? 'active' : '' }}">
                         <i class="bi bi-clock-history text-info"></i> Histori Rekap
                     </a>
                 </li>
-                <!-- Menu Siap Jual -->
+                @endif
+
+                <!-- Siap Jual -->
+                @if($canAccess('siap_jual'))
                 <li>
                     <a href="{{ route('pembelian.siap_jual') }}" class="{{ request()->routeIs('pembelian.siap_jual') ? 'active' : '' }}">
                         <i class="bi bi-box-seam-fill text-warning"></i> Siap Jual
                     </a>
                 </li>
-                <!-- Menu Histori Penjualan -->
+                @endif
+
+                <!-- Histori Penjualan -->
+                @if($canAccess('histori_penjualan'))
                 <li>
                     <a href="{{ route('penjualan.histori') }}" class="{{ request()->routeIs('penjualan.histori') ? 'active' : '' }}">
                         <i class="bi bi-receipt-cutoff"></i> Histori Penjualan
                     </a>
                 </li>
+                @endif
 
                 <!-- Section Master Data -->
+                @if($canAccess('master_data'))
                 <li class="sidebar-heading mt-3">Master Data</li>
                 <li>
                     <a href="{{ route('barang.index') }}" class="{{ request()->routeIs('barang.*') ? 'active' : '' }}">
@@ -233,12 +265,16 @@
                     </a>
                 </li>
                 @endif
+                @endif
 
+                <!-- Manajemen User -->
+                @if($canAccess('user_management'))
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('user.index') ? 'active' : '' }}" href="{{ route('user.index') }}">
                         <i class="bi bi-people-fill me-2"></i> Manajemen User
                     </a>
                 </li>
+                @endif
             </ul>
         </nav>
 

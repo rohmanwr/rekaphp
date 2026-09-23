@@ -22,6 +22,9 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role',
+        'status',
+        'permissions', // <-- Tambahkan ini
     ];
 
     /**
@@ -46,4 +49,8 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    protected $casts = [
+        'permissions' => 'array', // <-- Agar otomatis dibaca sebagai array oleh Laravel
+    ];
 }
