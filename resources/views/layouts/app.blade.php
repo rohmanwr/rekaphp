@@ -170,7 +170,7 @@
             <div class="sidebar-header d-flex align-items-center justify-content-between">
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-phone-vibrate text-warning fs-4"></i>
-                    <h5 class="mb-0 fw-bold text-white tracking-wide">Rekap HP</h5>
+                    <h5 class="mb-0 fw-bold text-white tracking-wide">Rohman Store</h5>
                 </div>
                 <button type="button" id="closeSidebarBtn" class="btn btn-link text-white-50 d-lg-none p-0 border-0" aria-label="Tutup Menu">
                     <i class="bi bi-x-lg fs-5"></i>
@@ -223,14 +223,6 @@
                 </li>
                 @endif
 
-                <!-- Histori Rekap -->
-                @if($canAccess('histori_rekap'))
-                <li>
-                    <a href="{{ route('pembelian.histori_rekap') }}" class="{{ request()->routeIs('pembelian.histori_rekap') ? 'active' : '' }}">
-                        <i class="bi bi-clock-history text-info"></i> Histori Rekap
-                    </a>
-                </li>
-                @endif
 
                 <!-- Siap Jual -->
                 @if($canAccess('siap_jual'))
@@ -246,6 +238,15 @@
                 <li>
                     <a href="{{ route('penjualan.histori') }}" class="{{ request()->routeIs('penjualan.histori') ? 'active' : '' }}">
                         <i class="bi bi-receipt-cutoff"></i> Histori Penjualan
+                    </a>
+                </li>
+                @endif
+
+                <!-- Histori Rekap -->
+                @if($canAccess('histori_rekap'))
+                <li>
+                    <a href="{{ route('pembelian.histori_rekap') }}" class="{{ request()->routeIs('pembelian.histori_rekap') ? 'active' : '' }}">
+                        <i class="bi bi-clock-history text-info"></i> Histori Rekap
                     </a>
                 </li>
                 @endif

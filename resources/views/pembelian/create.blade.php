@@ -65,20 +65,30 @@
 
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Transaksi Beli Via <span class="text-danger">*</span></label>
-                    <select id="selectViaTambah" class="form-select select-via-toggle" data-target="#inputViaTambah" required>
-                        <option value="Tokopedia">Tokopedia</option>
-                        <option value="Shopee">Shopee</option>
-                        <option value="Lazada">Lazada</option>
-                        <option value="TikTok">TikTok</option>
-                        <option value="Lainnya">Lainnya (Ketik Manual)</option>
+                    <select id="selectViaTambah" class="form-select select-via-toggle" required>
+                        <option value="Tokopedia" {{ old('via') == 'Tokopedia' ? 'selected' : '' }}>Tokopedia</option>
+                        <option value="Shopee" {{ old('via') == 'Shopee' ? 'selected' : '' }}>Shopee</option>
+                        <option value="Lazada" {{ old('via') == 'Lazada' ? 'selected' : '' }}>Lazada</option>
+                        <option value="TikTok" {{ old('via') == 'TikTok' ? 'selected' : '' }}>TikTok</option>
+                        <option value="COD" {{ old('via') == 'COD' ? 'selected' : '' }}>COD</option>
+                        <option value="Lainnya" {{ !in_array(old('via'), ['Tokopedia', 'Shopee', 'Lazada', 'TikTok', 'COD', null]) ? 'selected' : '' }}>Lainnya (Ketik Manual)</option>
                     </select>
+
+                    <!-- Input text manual jika pilih Lainnya -->
                     <input
                         type="text"
                         id="inputViaTambah"
                         name="via"
                         class="form-control mt-2 d-none"
-                        value="Tokopedia"
+                        value="{{ old('via', 'Tokopedia') }}"
                         placeholder="Ketik platform/via transaksi manual...">
+                </div>
+
+                <!-- Input Qty Khusus COD (Default Tersembunyi) -->
+                <div class="col-md-6 d-none" id="wrapperQtyCod">
+                    <label class="form-label fw-semibold text-primary">Jumlah Qty Barang (COD) <span class="text-danger">*</span></label>
+                    <input type="number" name="qty" id="inputQtyCod" class="form-control" value="{{ old('qty', 1) }}" min="1" placeholder="Masukkan jumlah barang...">
+                    <small class="text-muted">Jika diisi 3, maka sistem akan mencatat 3 barang berbeda secara otomatis.</small>
                 </div>
 
                 <div class="col-md-6">
@@ -131,20 +141,39 @@
     document.addEventListener('DOMContentLoaded', function() {
         const selectVia = document.getElementById('selectViaTambah');
         const inputVia = document.getElementById('inputViaTambah');
+        const wrapperQtyCod = document.getElementById('wrapperQtyCod');
+        const inputQtyCod = document.getElementById('inputQtyCod');
+
+        function handleViaChange() {
+            const val = selectVia.value;
+
+            // Sembunyikan input manual & qty dulu
+            inputVia.classList.add('d-none');
+            inputVia.required = false;
+
+            wrapperQtyCod.classList.add('d-none');
+            inputQtyCod.required = false;
+
+            if (val === 'COD') {
+                // Tampilkan form Qty khusus COD
+                wrapperQtyCod.classList.remove('d-none');
+                inputQtyCod.required = true;
+                inputVia.value = 'COD'; // Nilai 'via' dikirim sebagai COD
+            } else if (val === 'Lainnya') {
+                // Tampilkan input text manual
+                inputVia.classList.remove('d-none');
+                inputVia.value = '';
+                inputVia.focus();
+                inputVia.required = true;
+            } else {
+                inputVia.value = val;
+            }
+        }
 
         if (selectVia) {
-            selectVia.addEventListener('change', function() {
-                if (this.value === 'Lainnya') {
-                    inputVia.classList.remove('d-none');
-                    inputVia.value = '';
-                    inputVia.focus();
-                    inputVia.required = true;
-                } else {
-                    inputVia.classList.add('d-none');
-                    inputVia.value = this.value;
-                    inputVia.required = false;
-                }
-            });
+            selectVia.addEventListener('change', handleViaChange);
+            // Jalankan saat load pertama (mengantisipasi old value jika ada error validasi)
+            handleViaChange();
         }
 
         function formatRupiah(angka) {

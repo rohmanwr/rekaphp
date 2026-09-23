@@ -67,14 +67,14 @@ class PembelianController extends Controller
             'total_modal'     => 'required',
             'status'          => 'required|in:Belum Ready,Sudah Ready,Sudah Diambil,Bermasalah,Jual,Selesai',
             'detail_imei'     => 'nullable|string',
+            'qty'             => 'nullable|integer|min:1',
             'file_lampiran.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
         ]);
 
-        $data = $request->except('file_lampiran');
-        $data['user_id'] = Auth::id();
-        $data['total_modal'] = str_replace('.', '', $data['total_modal']);
-        $data['kode_otomatis'] = 'TRX-' . date('Ymd') . '-' . rand(100, 999);
-        $data['detail_imei'] = $request->input('detail_imei');
+        $totalModalBersih = str_replace('.', '', $request->total_modal);
+
+        // Tentukan jumlah loop (Qty). Jika via COD dan qty diisi, ambil nilainya. Jika tidak, default 1.
+        $qty = ($request->via === 'COD' && $request->filled('qty')) ? (int) $request->qty : 1;
 
         $files = [];
         if ($request->hasFile('file_lampiran')) {
@@ -82,11 +82,26 @@ class PembelianController extends Controller
                 $files[] = $file->store('lampiran_pembelian', 'public');
             }
         }
-        $data['file_lampiran'] = $files;
 
-        Pembelian::create($data);
+        // Lakukan perulangan (looping) sebanyak nilai Qty yang diinputkan
+        for ($i = 0; $i < $qty; $i++) {
+            Pembelian::create([
+                'user_id'         => Auth::id(),
+                'kode_manual'     => $request->kode_manual,
+                'nama_alamat'     => $request->nama_alamat,
+                'nama_barang'     => $request->nama_barang,
+                'nama_toko'       => $request->nama_toko,
+                'via'             => $request->via,
+                'tanggal_beli'    => $request->tanggal_beli,
+                'total_modal'     => $totalModalBersih,
+                'status'          => $request->status,
+                'detail_imei'     => $request->input('detail_imei'),
+                'kode_otomatis'   => 'TRX-' . date('Ymd') . '-' . rand(100, 999),
+                'file_lampiran'   => !empty($files) ? $files : null,
+            ]);
+        }
 
-        return redirect()->route('pembelian.index')->with('success', 'Data Pembelian berhasil ditambahkan!');
+        return redirect()->route('pembelian.index')->with('success', 'Berhasil mencatat ' . $qty . ' data pembelian baru!');
     }
 
     public function updateStatus(Request $request, $id)
@@ -427,6 +442,7 @@ class PembelianController extends Controller
 
         return redirect()->back()->with('success', 'Status berhasil dikembalikan!');
     }
+
     public function historiPenjualan(Request $request)
     {
         // Mengambil seluruh arsip invoice tanpa batas
