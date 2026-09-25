@@ -12,7 +12,7 @@ class Pembelian extends Model
     protected $fillable = [
         'user_id',
         'kode_manual',
-        'nama_alamat', // Tambahkan ini
+        'nama_alamat',
         'kode_otomatis',
         'nama_barang',
         'nama_toko',
@@ -21,12 +21,14 @@ class Pembelian extends Model
         'total_modal',
         'status',
         'deskripsi_imei',
-        'detail_imei', // Tambahkan ini
+        'detail_imei',
         'file_lampiran',
+        'is_checked', // Ditambahkan untuk menyimpan status checkbox ringkasan pesanan
     ];
 
     protected $casts = [
         'file_lampiran' => 'array',
+        'is_checked'    => 'boolean', // Memastikan nilai tersimpan sebagai true/false
     ];
 
     public function user()

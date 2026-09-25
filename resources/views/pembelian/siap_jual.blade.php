@@ -6,14 +6,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h3 class="fw-bold text-dark mb-0">Barang Siap Jual</h3>
-        <p class="text-muted small mb-0">Pilih dan centang barang yang ingin diproses penjualannya hari ini.</p>
-    </div>
-
-    <!-- Tombol Aksi Massal (Muncul otomatis jika ada checkbox yang dicentang) -->
-    <div id="bulkActionContainer" class="d-none">
-        <button type="button" class="btn btn-success fw-semibold shadow-sm" id="btnProsesTerpilih">
-            <i class="bi bi-cart-check-fill me-1"></i> Proses Penjualan Terpilih (<span id="selectedCount">0</span>)
-        </button>
+        <p class="text-muted small mb-0">Pilih dan centang barang untuk diproses penjualan atau ubah status secara massal.</p>
     </div>
 </div>
 
@@ -31,22 +24,22 @@
 </div>
 @endif
 
-<!-- Searchbar Filter -->
+<!-- Searchbar Filter (Live Search Tanpa Enter) -->
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body">
-        <!-- PERBAIKAN: Ubah route menjadi pembelian.siap_jual -->
-        <form action="{{ route('pembelian.siap_jual') }}" method="GET">
+        <form id="searchForm" action="{{ route('pembelian.siap_jual') }}" method="GET">
             <div class="input-group">
                 <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
                 <input
                     type="text"
+                    id="searchInput"
                     name="search"
                     class="form-control border-start-0 ps-0"
-                    placeholder="Cari berdasarkan Kode, Nama Barang, Toko, atau IMEI..."
+                    placeholder="Cari otomatis berdasarkan Kode, Nama Barang, Toko, atau IMEI..."
                     value="{{ $search ?? '' }}"
-                    autocomplete="off">
+                    autocomplete="off"
+                    autofocus>
                 @if(!empty($search))
-                <!-- PERBAIKAN: Ubah route reset juga menjadi pembelian.siap_jual -->
                 <a href="{{ route('pembelian.siap_jual') }}" class="btn btn-outline-secondary" title="Reset Pencarian">
                     <i class="bi bi-x-lg"></i> Reset
                 </a>
@@ -56,11 +49,12 @@
     </div>
 </div>
 
-<!-- Form Khusus untuk Proses Checkbox Massal -->
+<!-- Form Utama untuk Checkbox Massal (Bisa untuk Invoice / Penjualan atau Update Status Massal) -->
 <form id="formSiapJual" action="{{ route('invoice.create') }}" method="POST">
     @csrf
-    <!-- Tabel Barang Siap Jual -->
-    <div class="card border-0 shadow-sm">
+
+    <!-- Tabel Barang Siap Jual (Tanpa Batas Maksimal / Semua Data Tampil) -->
+    <div class="card border-0 shadow-sm mb-5">
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
@@ -85,7 +79,6 @@
                     <tbody>
                         @forelse($pembelians as $index => $item)
                         @php
-                        // Ambil harga jual dari master barang berdasarkan nama_barang
                         $masterBarang = null;
                         if (isset($barangs)) {
                         if ($barangs instanceof \Illuminate\Support\Collection || is_array($barangs)) {
@@ -96,11 +89,10 @@
                         @endphp
                         <tr>
                             <td class="text-center">
-                                <!-- Checkbox per item -->
                                 <input type="checkbox" name="pembelian_ids[]" value="{{ $item->id }}" class="form-check-input item-checkbox">
                             </td>
                             <td class="text-center fw-semibold text-muted">
-                                {{ method_exists($pembelians, 'firstItem') && $pembelians->firstItem() ? $pembelians->firstItem() + $index : $index + 1 }}
+                                {{ $index + 1 }}
                             </td>
                             <td>
                                 <span class="fw-bold text-dark">{{ $item->kode_manual ?? '-' }}</span>
@@ -147,13 +139,11 @@
                                     <i class="bi bi-rocket-takeoff-fill"></i> Siap Jual
                                 </span>
                             </td>
-                            <!-- Kolom Tombol Jual Satuan -->
                             <td class="text-center">
                                 <button type="submit" formaction="{{ route('invoice.create') }}" name="pembelian_ids[]" value="{{ $item->id }}" class="btn btn-sm btn-primary fw-semibold" title="Proses Penjualan Item Ini">
                                     <i class="bi bi-cash-coin"></i> Jual
                                 </button>
                             </td>
-                            <!-- Kolom Kembalikan Status -->
                             <td class="text-center">
                                 <div class="input-group input-group-sm">
                                     <select id="selectRestore-{{ $item->id }}" class="form-select form-select-sm bg-light fs-7" title="Pilih Status Pengembalian">
@@ -181,17 +171,37 @@
                 </table>
             </div>
         </div>
+    </div>
 
-        <!-- Paginasi Aman -->
-        @if(method_exists($pembelians, 'hasPages') && $pembelians->hasPages())
-        <div class="card-footer bg-white py-3">
-            {{ $pembelians->appends(['search' => $search ?? ''])->links() }}
+    <!-- Floating Action Bar untuk Aksi Massal (Muncul saat ada item yang dicentang) -->
+    <div id="bulkActionBar" class="fixed-bottom bg-dark text-white p-3 shadow-lg d-none" style="z-index: 1050;">
+        <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <span id="selectedCount" class="fw-bold text-warning">0</span> item dipilih:
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <!-- Opsi 1: Ubah Status Massal -->
+                <select name="status_massal" id="statusMassalSelect" class="form-select form-select-sm" style="min-width: 170px;">
+                    <option value="" disabled selected>-- Ubah Status --</option>
+                    <option value="Belum Ready">⏳ Belum Ready</option>
+                    <option value="Sudah Ready">✅ Sudah Ready</option>
+                    <option value="Sudah Diambil">📦 Sudah Diambil</option>
+                    <option value="Bermasalah">⚠️ Bermasalah</option>
+                </select>
+                <button type="button" id="btnUpdateMassalStatus" class="btn btn-outline-warning btn-sm fw-bold">Update Status</button>
+
+                <span class="text-muted">|</span>
+
+                <!-- Opsi 2: Proses Penjualan Terpilih -->
+                <button type="submit" formaction="{{ route('invoice.create') }}" class="btn btn-success btn-sm fw-bold px-3">
+                    <i class="bi bi-cart-check-fill me-1"></i> Buat Invoice Terpilih
+                </button>
+            </div>
         </div>
-        @endif
     </div>
 </form>
 
-<!-- Render form restore status terpisah di luar form utama agar tidak konflik method PATCH -->
+<!-- Render form restore status satuan terpisah -->
 @foreach($pembelians as $item)
 <form id="restoreForm-{{ $item->id }}" action="{{ route('pembelian.restoreStatus', $item->id) }}" method="POST" class="d-none">
     @csrf
@@ -204,18 +214,20 @@
     document.addEventListener('DOMContentLoaded', function() {
         const selectAll = document.getElementById('selectAll');
         const itemCheckboxes = document.querySelectorAll('.item-checkbox');
-        const bulkActionContainer = document.getElementById('bulkActionContainer');
+        const bulkActionBar = document.getElementById('bulkActionBar');
         const selectedCountSpan = document.getElementById('selectedCount');
-        const btnProsesTerpilih = document.getElementById('btnProsesTerpilih');
+        const btnUpdateMassalStatus = document.getElementById('btnUpdateMassalStatus');
+        const statusMassalSelect = document.getElementById('statusMassalSelect');
+        const formSiapJual = document.getElementById('formSiapJual');
 
         function updateBulkActionState() {
             let checkedCount = document.querySelectorAll('.item-checkbox:checked').length;
             selectedCountSpan.textContent = checkedCount;
 
             if (checkedCount > 0) {
-                bulkActionContainer.classList.remove('d-none');
+                bulkActionBar.classList.remove('d-none');
             } else {
-                bulkActionContainer.classList.add('d-none');
+                bulkActionBar.classList.add('d-none');
             }
         }
 
@@ -237,17 +249,56 @@
             });
         });
 
-        if (btnProsesTerpilih) {
-            btnProsesTerpilih.addEventListener('click', function() {
-                let form = document.getElementById('formSiapJual');
-                form.action = "{{ route('invoice.create') }}";
-                form.method = "POST";
-                form.submit();
+        // Handler tombol Update Status Massal
+        if (btnUpdateMassalStatus) {
+            btnUpdateMassalStatus.addEventListener('click', function() {
+                if (!statusMassalSelect.value) {
+                    alert('Silakan pilih status baru terlebih dahulu!');
+                    return;
+                }
+                let checkedCount = document.querySelectorAll('.item-checkbox:checked').length;
+                if (checkedCount === 0) {
+                    alert('Pilih minimal satu barang!');
+                    return;
+                }
+
+                if (confirm('Apakah Anda yakin ingin mengubah status ' + checkedCount + ' barang terpilih secara massal?')) {
+                    formSiapJual.action = "{{ route('pembelian.siap_jual.updateStatusMassal') }}";
+                    let methodInput = formSiapJual.querySelector('input[name="_method"]');
+                    if (!methodInput) {
+                        methodInput = document.createElement('input');
+                        methodInput.type = 'hidden';
+                        methodInput.name = '_method';
+                        methodInput.value = 'PATCH';
+                        formSiapJual.appendChild(methodInput);
+                    } else {
+                        methodInput.value = 'PATCH';
+                    }
+                    formSiapJual.submit();
+                }
+            });
+        }
+
+        // Live Search otomatis tanpa perlu menekan Enter
+        const searchInput = document.getElementById('searchInput');
+        const searchForm = document.getElementById('searchForm');
+        let timer;
+
+        if (searchInput) {
+            // Mempertahankan posisi kursor dan teks di akhir saat halaman mereload data
+            const val = searchInput.value;
+            searchInput.value = '';
+            searchInput.value = val;
+
+            searchInput.addEventListener('input', function() {
+                clearTimeout(timer);
+                timer = setTimeout(() => {
+                    searchForm.submit();
+                }, 500); // Jeda waktu 0.5 detik setelah berhenti mengetik
             });
         }
     });
 
-    // Fungsi aman untuk mentrigger form pengembalian status tanpa merusak form massal
     function submitRestore(itemId) {
         let select = document.getElementById('selectRestore-' + itemId);
         let val = select.value;

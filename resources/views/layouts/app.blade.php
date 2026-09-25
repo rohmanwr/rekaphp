@@ -235,6 +235,7 @@
 
                 <!-- Histori Penjualan -->
                 @if($canAccess('histori_penjualan'))
+                <li class="sidebar-heading mt-3">Histori Data</li>
                 <li>
                     <a href="{{ route('penjualan.histori') }}" class="{{ request()->routeIs('penjualan.histori') ? 'active' : '' }}">
                         <i class="bi bi-receipt-cutoff"></i> Histori Penjualan

@@ -45,9 +45,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/pembelian', [PembelianController::class, 'index'])->name('pembelian.index');
         Route::get('/pembelian/create', [PembelianController::class, 'create'])->name('pembelian.create');
         Route::post('/pembelian', [PembelianController::class, 'store'])->name('pembelian.store');
+
+        // <-- Rute statis HARUS DI ATAS sebelum rute yang menggunakan {id}
+        Route::patch('/pembelian/update-status-massal', [PembelianController::class, 'updateStatusMassal'])->name('pembelian.updateStatusMassal');
+        Route::patch('/pembelian/{id}/toggle-check', [PembelianController::class, 'toggleCheck'])->name('pembelian.toggleCheck');
         Route::put('/pembelian/{id}', [PembelianController::class, 'update'])->name('pembelian.update');
         Route::patch('/pembelian/{id}/status', [PembelianController::class, 'updateStatus'])->name('pembelian.updateStatus');
         Route::delete('/pembelian/{id}', [PembelianController::class, 'destroy'])->name('pembelian.destroy');
+        Route::post('/pembelian/save-checklist', [PembelianController::class, 'saveChecklist'])->name('pembelian.saveChecklist');
     });
 
 
@@ -56,8 +61,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ==========================================
     Route::middleware(['permission:siap_jual'])->group(function () {
         Route::get('/pembelian/siap-jual', [PembelianController::class, 'barangSiapJual'])->name('pembelian.siap_jual');
-    });
 
+        // Tambahkan rute patch ini untuk update status massal di halaman siap jual
+        Route::patch('/pembelian/siap-jual/update-status-massal', [PembelianController::class, 'updateStatusMassal'])->name('pembelian.siap_jual.updateStatusMassal');
+    });
 
     // ==========================================
     // 3. MENU TRANSAKSI & INVOICE / PENJUALAN (Permission: penjualan)
@@ -110,7 +117,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 
     // ==========================================
-    // MASTER DATA (Opsional: Bisa digabung ke pembelian atau dibiarkan terbuka untuk admin)
+    // MASTER DATA
     // ==========================================
     Route::middleware(['permission:master_data'])->group(function () {
         // Master Data Barang
@@ -119,7 +126,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/barang/{id}', [BarangController::class, 'update'])->name('barang.update');
         Route::delete('/barang/{id}', [BarangController::class, 'destroy'])->name('barang.destroy');
 
-        // Master Data Toko (Pastikan bagian ini ada di dalam group middleware!)
+        // Master Data Toko
         Route::get('/toko', [TokoController::class, 'index'])->name('toko.index');
         Route::post('/toko', [TokoController::class, 'store'])->name('toko.store');
         Route::put('/toko/{id}', [TokoController::class, 'update'])->name('toko.update');
