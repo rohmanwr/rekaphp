@@ -70,8 +70,9 @@
                 <tbody>
                     @forelse($barangs as $index => $item)
                     <tr>
+                        <!-- Diperbaiki menggunakan $loop->iteration karena menggunakan get() -->
                         <td class="text-center fw-semibold text-muted">
-                            {{ $barangs->firstItem() ? $barangs->firstItem() + $index : $index + 1 }}
+                            {{ $loop->iteration }}
                         </td>
                         <td><span class="badge bg-dark fs-6">{{ $item->kode_barang }}</span></td>
                         <td class="fw-semibold">{{ $item->nama_barang }}</td>
@@ -132,11 +133,6 @@
             </table>
         </div>
     </div>
-    @if($barangs->hasPages())
-    <div class="card-footer bg-white">
-        {{ $barangs->appends(['search' => $search])->links() }}
-    </div>
-    @endif
 </div>
 
 <!-- Modal Tambah Barang -->

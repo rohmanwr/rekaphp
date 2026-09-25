@@ -14,7 +14,7 @@ class BarangController extends Controller
         $barangs = Barang::when($search, function ($query, $search) {
             return $query->where('kode_barang', 'like', "%{$search}%")
                 ->orWhere('nama_barang', 'like', "%{$search}%");
-        })->latest()->paginate(10);
+        })->latest()->get(); // Menggunakan get() agar menampilkan seluruh data tanpa batasan
 
         return view('barang.index', compact('barangs', 'search'));
     }

@@ -72,7 +72,7 @@
                     @forelse($tokos as $index => $item)
                     <tr>
                         <td class="text-center fw-semibold text-muted">
-                            {{ $tokos->firstItem() ? $tokos->firstItem() + $index : $index + 1 }}
+                            {{ $loop->iteration }}
                         </td>
                         <td><span class="badge bg-dark fs-6">{{ $item->kode_toko }}</span></td>
                         <td class="fw-semibold">{{ $item->nama_toko }}</td>
@@ -146,11 +146,6 @@
             </table>
         </div>
     </div>
-    @if($tokos->hasPages())
-    <div class="card-footer bg-white">
-        {{ $tokos->appends(['search' => $search])->links() }}
-    </div>
-    @endif
 </div>
 
 <!-- Modal Tambah Toko -->

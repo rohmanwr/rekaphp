@@ -15,11 +15,12 @@ class TokoController extends Controller
 
         if (!empty($search)) {
             $query->where('nama_toko', 'like', "%{$search}%")
-                  ->orWhere('kode_toko', 'like', "%{$search}%")
-                  ->orWhere('lokasi_toko', 'like', "%{$search}%");
+                ->orWhere('kode_toko', 'like', "%{$search}%")
+                ->orWhere('lokasi_toko', 'like', "%{$search}%");
         }
 
-        $tokos = $query->orderBy('nama_toko', 'asc')->paginate(10);
+        // Mengambil seluruh data tanpa batasan (menghilangkan paginate/limit)
+        $tokos = $query->latest()->get();
 
         return view('toko.index', compact('tokos', 'search'));
     }
