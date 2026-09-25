@@ -64,7 +64,7 @@
                     @forelse($pembelians as $index => $item)
                     <tr>
                         <td class="text-center fw-semibold text-muted">
-                            {{ $pembelians->firstItem() ? $pembelians->firstItem() + $index : $index + 1 }}
+                            {{ $loop->iteration }}
                         </td>
                         <td><span class="badge bg-dark">{{ $item->kode_otomatis }}</span></td>
                         <td>
@@ -134,10 +134,5 @@
             </table>
         </div>
     </div>
-    @if($pembelians->hasPages())
-    <div class="card-footer bg-white">
-        {{ $pembelians->appends(['search' => $search])->links() }}
-    </div>
-    @endif
 </div>
 @endsection

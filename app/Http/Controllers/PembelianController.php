@@ -210,7 +210,7 @@ class PembelianController extends Controller
                 });
             })
             ->orderBy('updated_at', 'desc')
-            ->paginate(10);
+            ->get(); // <-- Mengubah ->paginate(10) menjadi ->get() agar menampilkan semua data tanpa batasan
 
         foreach ($pembelians as $item) {
             $item->harga_jual = $item->harga_jual ?? 0;
