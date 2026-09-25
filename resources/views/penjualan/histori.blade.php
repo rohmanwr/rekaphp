@@ -26,6 +26,7 @@
                         <th>Pelanggan</th>
                         <th>Tanggal Terbit</th>
                         <th>Total Tagihan</th>
+                        <th>Total Profit</th>
                         <th class="text-center" style="width: 120px;">Aksi</th>
                     </tr>
                 </thead>
@@ -52,6 +53,8 @@
                     $sourceItems = !empty($rawPembelianData) && is_array($rawPembelianData)
                     ? $rawPembelianData
                     : (is_array($rawItems) ? $rawItems : []);
+
+                    $totalProfitInvoice = 0;
 
                     foreach($sourceItems as $it) {
                     $namaBarangIt = $it['nama_barang'] ?? ($it['deskripsi'] ?? 'Barang');
@@ -95,6 +98,9 @@
                     if (count($imeis) > 1) {
                     $hargaSatuanUnit = count($imeis) > 0 ? ($hargaJualHistori / count($imeis)) : $hargaJualHistori;
                     foreach ($imeis as $singleImei) {
+                    $profitUnit = $hargaSatuanUnit - $modalIt;
+                    $totalProfitInvoice += $profitUnit;
+
                     $displayItems[] = [
                     'nama_barang' => $namaBarangIt,
                     'nama_device' => $it['nama_device'] ?? null,
@@ -104,13 +110,14 @@
                     'tanggal_beli' => $it['tanggal_beli'] ?? $invoice->tanggal,
                     'total_modal' => $modalIt,
                     'harga_jual' => $hargaSatuanUnit,
-                    'total_profit' => $hargaSatuanUnit - $modalIt,
+                    'total_profit' => $profitUnit,
                     'file_lampiran' => $it['file_lampiran'] ?? [],
                     ];
                     }
                     } else {
                     $singleImei = count($imeis) === 1 ? $imeis[0] : '-';
                     $profitIt = isset($it['total_profit']) ? (float) $it['total_profit'] : ($hargaJualHistori - $modalIt);
+                    $totalProfitInvoice += $profitIt;
 
                     $displayItems[] = [
                     'nama_barang' => $namaBarangIt,
@@ -144,6 +151,10 @@
                         </td>
                         <td>{{ \Carbon\Carbon::parse($invoice->tanggal)->format('d/m/Y') }}</td>
                         <td class="fw-bold text-success">Rp {{ number_format($invoice->total ?? 0, 0, ',', '.') }}</td>
+                        <!-- Tambahan Kolom Total Profit Per Invoice -->
+                        <td class="fw-bold {{ $totalProfitInvoice >= 0 ? 'text-primary' : 'text-danger' }}">
+                            Rp {{ number_format($totalProfitInvoice, 0, ',', '.') }}
+                        </td>
                         <td class="text-center">
                             <a href="{{ route('invoice.show', $invoice->id) }}" class="btn btn-sm btn-primary">
                                 <i class="bi bi-file-earmark-text"></i> Invoice
@@ -153,10 +164,15 @@
 
                     <!-- Baris Rincian Lengkap (Dropdown) -->
                     <tr class="bg-light">
-                        <td colspan="7" class="p-0 border-0">
+                        <td colspan="8" class="p-0 border-0">
                             <div class="collapse p-3" id="collapseInvoice{{ $invoice->id }}">
                                 <div class="card card-body border bg-white shadow-sm mb-2">
-                                    <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-box-seam me-1"></i> Rincian Barang Terjual Per Unit (Invoice: {{ $invoice->referensi }})</h6>
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="fw-bold text-secondary mb-0"><i class="bi bi-box-seam me-1"></i> Rincian Barang Terjual Per Unit (Invoice: {{ $invoice->referensi }})</h6>
+                                        <span class="badge bg-light text-dark border fw-bold fs-6">
+                                            Total Profit Invoice: <span class="{{ $totalProfitInvoice >= 0 ? 'text-primary' : 'text-danger' }}">Rp {{ number_format($totalProfitInvoice, 0, ',', '.') }}</span>
+                                        </span>
+                                    </div>
 
                                     <div class="table-responsive">
                                         <table class="table table-sm table-bordered align-middle mb-0">
@@ -245,7 +261,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" class="text-center py-4 text-muted">Belum ada histori penjualan.</td>
+                        <td colspan="8" class="text-center py-4 text-muted">Belum ada histori penjualan.</td>
                     </tr>
                     @endforelse
                 </tbody>

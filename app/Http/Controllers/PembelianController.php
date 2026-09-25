@@ -210,38 +210,44 @@ class PembelianController extends Controller
                 });
             })
             ->orderBy('updated_at', 'desc')
-            ->get(); // <-- Mengubah ->paginate(10) menjadi ->get() agar menampilkan semua data tanpa batasan
+            ->get();
+
+        // Ambil semua invoice untuk pencocokan data harga jual terbaru
+        $invoices = Invoice::all();
 
         foreach ($pembelians as $item) {
-            $item->harga_jual = $item->harga_jual ?? 0;
-            $item->total_profit = $item->total_profit ?? ($item->harga_jual - $item->total_modal);
+            // Cari data snapshot di Invoice yang cocok dengan item ini
+            foreach ($invoices as $inv) {
+                $found = false;
 
-            if (empty($item->no_invoice) || empty($item->tanggal_terbit) || $item->harga_jual == 0) {
-                $invoices = Invoice::all();
-                foreach ($invoices as $inv) {
-                    $found = false;
-
-                    if (!empty($inv->pembelian_data) && is_array($inv->pembelian_data)) {
-                        foreach ($inv->pembelian_data as $snap) {
-                            if (
-                                (isset($snap['pembelian_id']) && $snap['pembelian_id'] == $item->id) ||
-                                (isset($snap['detail_imei']) && $snap['detail_imei'] == $item->detail_imei && !empty($item->detail_imei))
-                            ) {
-                                $found = true;
-                                $item->no_invoice = $inv->referensi;
-                                $item->tanggal_terbit = $inv->tanggal;
-                                $item->harga_jual = $snap['harga_jual'] ?? 0;
-                                $item->total_profit = $snap['total_profit'] ?? ($item->harga_jual - $item->total_modal);
-                                break;
+                if (!empty($inv->pembelian_data) && is_array($inv->pembelian_data)) {
+                    foreach ($inv->pembelian_data as $snap) {
+                        if (
+                            (isset($snap['pembelian_id']) && $snap['pembelian_id'] == $item->id) ||
+                            (isset($snap['detail_imei']) && !empty($item->detail_imei) && $snap['detail_imei'] == $item->detail_imei)
+                        ) {
+                            $found = true;
+                            $item->no_invoice = $inv->referensi;
+                            $item->tanggal_terbit = $inv->tanggal;
+                            // Paksa timpa harga jual dari snapshot invoice
+                            if (isset($snap['harga_jual']) && $snap['harga_jual'] > 0) {
+                                $item->harga_jual = (float) $snap['harga_jual'];
                             }
+                            break;
                         }
                     }
+                }
 
-                    if ($found) {
-                        break;
-                    }
+                if ($found) {
+                    break;
                 }
             }
+
+            // Hitung Ulang Total Profit Secara Otomatis: (Harga Jual - Total Modal Item Ini)
+            $modal = (float) ($item->total_modal ?? 0);
+            $hargaJual = (float) ($item->harga_jual ?? 0);
+
+            $item->total_profit = $hargaJual - $modal;
         }
 
         return view('pembelian.histori_rekap', compact('pembelians', 'search'));

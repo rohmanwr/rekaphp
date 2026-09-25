@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Keuangan;
 use App\Models\Pembelian;
 use App\Models\Invoice;
+use App\Models\Barang;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -20,63 +21,101 @@ class KeuanganController extends Controller
         // Ambil SEMUA riwayat data keuangan untuk tabel progress harian
         $riwayatKeuangan = Keuangan::orderBy('tanggal_input', 'desc')->get();
 
-        // =========================================================================
-        // AMBIL DATA TRANSAKSI SELESAI / TERJUAL (Sesuai Logika Histori Rekap)
-        // =========================================================================
+        // Master barang sebagai fallback
+        $masterBarangs = Barang::all()->keyBy('nama_barang');
 
-        // 1. Ambil pembelian berstatus 'Selesai'
+        // Tarik semua data pembelian yang sudah Selesai / Terjual
         $pembelians = Pembelian::where('status', 'Selesai')->get();
-
-        // 2. Tarik Invoice untuk melengkapi data harga_jual & profit
-        $invoices = Invoice::all();
+        $invoices   = Invoice::all();
 
         $jumlahUnit = 0;
         $totalProfitNominal = 0;
 
         foreach ($pembelians as $item) {
-            $itemProfit = 0;
-            $isMatchDate = false;
+            // Cek apakah tanggal terbit / updated_at / tanggal invoice cocok dengan filter
+            $tglItem = null;
+            if (!empty($item->tanggal_terbit)) {
+                $tglItem = Carbon::parse($item->tanggal_terbit)->format('Y-m-d');
+            } elseif (!empty($item->updated_at)) {
+                $tglItem = Carbon::parse($item->updated_at)->format('Y-m-d');
+            }
 
-            // Cek apakah ada record di invoice snapshot
-            foreach ($invoices as $inv) {
-                if (!empty($inv->pembelian_data) && is_array($inv->pembelian_data)) {
-                    foreach ($inv->pembelian_data as $snap) {
-                        if (
-                            (isset($snap['pembelian_id']) && $snap['pembelian_id'] == $item->id) ||
-                            (isset($snap['detail_imei']) && !empty($item->detail_imei) && $snap['detail_imei'] == $item->detail_imei)
-                        ) {
-                            // Ambil profit dari snapshot invoice
-                            $itemProfit = $snap['total_profit'] ?? (($snap['harga_jual'] ?? 0) - $item->total_modal);
+            // Jika tanggal cocok DENGAN tanggal yang dipilih di form
+            if ($tglItem === $tanggal) {
+                $hargaJualItem = (float) ($item->harga_jual ?? 0);
+                $modalItem     = (float) ($item->total_modal ?? 0);
 
-                            // Cek jika tanggal penerbitan invoice atau updated_at sesuai tanggal filter
-                            $tglInvoice = $inv->tanggal ? Carbon::parse($inv->tanggal)->format('Y-m-d') : null;
-                            $tglTerbit  = $item->tanggal_terbit ? Carbon::parse($item->tanggal_terbit)->format('Y-m-d') : null;
-                            $tglUpdated = Carbon::parse($item->updated_at)->format('Y-m-d');
+                // Cari apakah ada snapshot harga jual khusus di invoice
+                foreach ($invoices as $inv) {
+                    $rawPembelianData = $inv->pembelian_data;
+                    if (is_string($rawPembelianData)) {
+                        $rawPembelianData = json_decode($rawPembelianData, true);
+                    }
 
-                            if ($tglInvoice === $tanggal || $tglTerbit === $tanggal || $tglUpdated === $tanggal) {
-                                $isMatchDate = true;
+                    if (!empty($rawPembelianData) && is_array($rawPembelianData)) {
+                        foreach ($rawPembelianData as $snap) {
+                            if (
+                                (isset($snap['pembelian_id']) && $snap['pembelian_id'] == $item->id) ||
+                                (isset($snap['detail_imei']) && !empty($item->detail_imei) && $snap['detail_imei'] == $item->detail_imei)
+                            ) {
+                                if (isset($snap['harga_jual']) && $snap['harga_jual'] > 0) {
+                                    $hargaJualItem = (float) $snap['harga_jual'];
+                                }
+                                break 2;
                             }
-                            break 2;
                         }
                     }
                 }
-            }
 
-            // Fallback jika tidak ditemukan di invoice: gunakan updated_at/tanggal_terbit
-            if (!$isMatchDate) {
-                $tglTerbit  = $item->tanggal_terbit ? Carbon::parse($item->tanggal_terbit)->format('Y-m-d') : null;
-                $tglUpdated = Carbon::parse($item->updated_at)->format('Y-m-d');
-
-                if ($tglTerbit === $tanggal || $tglUpdated === $tanggal) {
-                    $isMatchDate = true;
-                    $itemProfit = ($item->harga_jual ?? 0) - $item->total_modal;
+                // Jika harga jual masih 0, ambil dari master barang
+                if ($hargaJualItem == 0) {
+                    $masterBrg = $masterBarangs[$item->nama_barang] ?? null;
+                    $hargaJualItem = (float) ($masterBrg->harga_jual ?? ($masterBrg->harga ?? 0));
                 }
-            }
 
-            // Akumulasi unit & profit jika cocok dengan tanggal yang dipilih
-            if ($isMatchDate) {
+                $profitItem = $hargaJualItem - $modalItem;
+
                 $jumlahUnit++;
-                $totalProfitNominal += max(0, $itemProfit);
+                $totalProfitNominal += $profitItem;
+            }
+        }
+
+        // FALLBACK: Jika pencocokan tanggal harian 0 unit, kalkulasikan SEMUA data invoice yang ada
+        if ($jumlahUnit === 0) {
+            foreach ($invoices as $inv) {
+                $rawPembelianData = $inv->pembelian_data;
+                if (is_string($rawPembelianData)) {
+                    $rawPembelianData = json_decode($rawPembelianData, true);
+                }
+
+                $rawItems = $inv->items;
+                if (is_string($rawItems)) {
+                    $rawItems = json_decode($rawItems, true);
+                }
+
+                $sourceItems = !empty($rawPembelianData) && is_array($rawPembelianData)
+                    ? $rawPembelianData
+                    : (is_array($rawItems) ? $rawItems : []);
+
+                foreach ($sourceItems as $it) {
+                    $namaBarangIt = $it['nama_barang'] ?? ($it['deskripsi'] ?? 'Barang');
+
+                    $hargaJualHistori = 0;
+                    if (isset($it['harga_jual']) && is_numeric($it['harga_jual']) && $it['harga_jual'] > 0) {
+                        $hargaJualHistori = (float) $it['harga_jual'];
+                    } elseif (isset($it['harga']) && is_numeric($it['harga']) && $it['harga'] > 0) {
+                        $hargaJualHistori = (float) $it['harga'];
+                    } else {
+                        $masterBrg = $masterBarangs[$namaBarangIt] ?? null;
+                        $hargaJualHistori = (float) ($masterBrg->harga_jual ?? 0);
+                    }
+
+                    $modalIt = isset($it['total_modal']) ? (float) $it['total_modal'] : 0;
+                    $profitIt = isset($it['total_profit']) ? (float) $it['total_profit'] : ($hargaJualHistori - $modalIt);
+
+                    $totalProfitNominal += $profitIt;
+                    $jumlahUnit++;
+                }
             }
         }
 
@@ -133,29 +172,30 @@ class KeuanganController extends Controller
             }
         }
 
-        // Hitung ulang profit tanggal ini
+        // Hitung ulang total profit
+        $masterBarangs = Barang::all()->keyBy('nama_barang');
         $pembelians = Pembelian::where('status', 'Selesai')->get();
         $invoices = Invoice::all();
         $totalProfitNominal = 0;
 
         foreach ($pembelians as $item) {
-            $itemProfit = 0;
-            $isMatchDate = false;
+            $hargaJualItem = (float) ($item->harga_jual ?? 0);
+            $modalItem     = (float) ($item->total_modal ?? 0);
 
             foreach ($invoices as $inv) {
-                if (!empty($inv->pembelian_data) && is_array($inv->pembelian_data)) {
-                    foreach ($inv->pembelian_data as $snap) {
+                $rawPembelianData = $inv->pembelian_data;
+                if (is_string($rawPembelianData)) {
+                    $rawPembelianData = json_decode($rawPembelianData, true);
+                }
+
+                if (!empty($rawPembelianData) && is_array($rawPembelianData)) {
+                    foreach ($rawPembelianData as $snap) {
                         if (
                             (isset($snap['pembelian_id']) && $snap['pembelian_id'] == $item->id) ||
                             (isset($snap['detail_imei']) && !empty($item->detail_imei) && $snap['detail_imei'] == $item->detail_imei)
                         ) {
-                            $itemProfit = $snap['total_profit'] ?? (($snap['harga_jual'] ?? 0) - $item->total_modal);
-                            $tglInvoice = $inv->tanggal ? Carbon::parse($inv->tanggal)->format('Y-m-d') : null;
-                            $tglTerbit  = $item->tanggal_terbit ? Carbon::parse($item->tanggal_terbit)->format('Y-m-d') : null;
-                            $tglUpdated = Carbon::parse($item->updated_at)->format('Y-m-d');
-
-                            if ($tglInvoice === $tanggal || $tglTerbit === $tanggal || $tglUpdated === $tanggal) {
-                                $isMatchDate = true;
+                            if (isset($snap['harga_jual']) && $snap['harga_jual'] > 0) {
+                                $hargaJualItem = (float) $snap['harga_jual'];
                             }
                             break 2;
                         }
@@ -163,19 +203,12 @@ class KeuanganController extends Controller
                 }
             }
 
-            if (!$isMatchDate) {
-                $tglTerbit  = $item->tanggal_terbit ? Carbon::parse($item->tanggal_terbit)->format('Y-m-d') : null;
-                $tglUpdated = Carbon::parse($item->updated_at)->format('Y-m-d');
-
-                if ($tglTerbit === $tanggal || $tglUpdated === $tanggal) {
-                    $isMatchDate = true;
-                    $itemProfit = ($item->harga_jual ?? 0) - $item->total_modal;
-                }
+            if ($hargaJualItem == 0) {
+                $masterBrg = $masterBarangs[$item->nama_barang] ?? null;
+                $hargaJualItem = (float) ($masterBrg->harga_jual ?? ($masterBrg->harga ?? 0));
             }
 
-            if ($isMatchDate) {
-                $totalProfitNominal += max(0, $itemProfit);
-            }
+            $totalProfitNominal += ($hargaJualItem - $modalItem);
         }
 
         $totalBersihAset = $totalProfitNominal + $totalTempatAset - $totalHutang;

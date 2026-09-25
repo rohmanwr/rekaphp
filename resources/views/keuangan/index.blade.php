@@ -133,10 +133,10 @@
                 <h5 class="fw-bold mb-0"><i class="bi bi-calculator me-2"></i> Rincian Tanggal: {{ \Carbon\Carbon::parse($tanggal)->translatedFormat('d F Y') }}</h5>
             </div>
             <div class="card-body">
-                <!-- Total Profit -->
+                <!-- Total Profit Dari Histori Penjualan -->
                 <div class="mb-3 pb-3 border-bottom">
-                    <span class="text-muted small d-block">TOTAL PROFIT (Dari Histori Rekap)</span>
-                    <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted small d-block">TOTAL PROFIT (Dari Histori Penjualan)</span>
+                    <div class="d-flex justify-content-between align-items-center mt-1">
                         <span class="fw-semibold text-secondary">{{ $jumlahUnit ?? 0 }} Unit Terjual</span>
                         <span class="fw-bold text-success fs-5">Rp {{ number_format($totalProfitNominal ?? 0, 0, ',', '.') }}</span>
                     </div>
