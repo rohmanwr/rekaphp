@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Pembelian;
 use App\Models\Invoice;
+use App\Models\Keuangan;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
 class RekapController extends Controller
 {
@@ -75,6 +77,22 @@ class RekapController extends Controller
             $totalProfit = 0; // Kembali ke 0 jika filter belum diisi / di-reset
         }
 
+        // ==========================================================
+        // E. DATA DASHBOARD KEUANGAN (Total Bersih Aset & Tanggal Input)
+        // ==========================================================
+        $tanggalHariIni = Carbon::now()->format('Y-m-d');
+
+        // Ambil data keuangan terbaru atau berdasarkan hari ini
+        $dataKeuangan = Keuangan::where('tanggal_input', $tanggalHariIni)->first();
+
+        // Jika data hari ini belum ada, ambil data keuangan terakhir yang pernah diinput
+        if (!$dataKeuangan) {
+            $dataKeuangan = Keuangan::latest('tanggal_input')->first();
+        }
+
+        $tanggalInput      = $dataKeuangan ? $dataKeuangan->tanggal_input : $tanggalHariIni;
+        $totalBersihAset   = $dataKeuangan ? $dataKeuangan->total_bersih_aset : 0;
+
         return view('rekap.index', compact(
             'totalQtyPembelian',
             'totalNominalPembelian',
@@ -87,7 +105,9 @@ class RekapController extends Controller
             'startDatePenjualan',
             'endDatePenjualan',
             'startDateProfit',
-            'endDateProfit'
+            'endDateProfit',
+            'tanggalInput',
+            'totalBersihAset'
         ));
     }
 }

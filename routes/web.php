@@ -9,6 +9,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TokoController;
 use App\Http\Controllers\Auth\DirectPasswordResetController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\KeuanganController;
 
 
 Route::get('/', function () {
@@ -115,6 +116,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('user.destroy');
     });
 
+    //KEUANGAN
+    // Keuangan & Kalkulasi Aset
+    Route::get('/keuangan', [KeuanganController::class, 'index'])->name('keuangan.index');
+    Route::post('/keuangan', [KeuanganController::class, 'storeOrUpdate'])->name('keuangan.store');
 
     // ==========================================
     // MASTER DATA

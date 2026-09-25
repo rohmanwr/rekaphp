@@ -181,10 +181,8 @@
             $authUser = Auth::user();
             $isAdmin = $authUser && strtolower($authUser->role) === 'admin';
             $permissions = $authUser->permissions;
-            // Jika permissions null (belum pernah disimpan/user baru), dianggap aktif semua secara default
             $isNewOrEmpty = is_null($permissions);
 
-            // Fungsi helper pengecekan hak akses per menu key
             $canAccess = function($key) use ($isAdmin, $permissions, $isNewOrEmpty) {
             if ($isAdmin) return true;
             if ($isNewOrEmpty) return true;
@@ -223,7 +221,6 @@
                 </li>
                 @endif
 
-
                 <!-- Siap Jual -->
                 @if($canAccess('siap_jual'))
                 <li>
@@ -248,6 +245,16 @@
                 <li>
                     <a href="{{ route('pembelian.histori_rekap') }}" class="{{ request()->routeIs('pembelian.histori_rekap') ? 'active' : '' }}">
                         <i class="bi bi-clock-history text-info"></i> Histori Rekap
+                    </a>
+                </li>
+                @endif
+
+                <!-- Menu Keuangan & Aset Harian -->
+                @if($canAccess('keuangan'))
+                <li class="sidebar-heading mt-3">Keuangan</li>
+                <li>
+                    <a href="{{ route('keuangan.index') }}" class="{{ request()->routeIs('keuangan.*') ? 'active' : '' }}">
+                        <i class="bi bi-wallet2 text-success"></i> Keuangan & Aset
                     </a>
                 </li>
                 @endif
