@@ -135,17 +135,7 @@
                 </div>
             </div>
         </div>
-        <!-- Widget Dashboard Total Bersih Aset -->
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="card border-0 shadow-sm bg-gradient text-dark p-3" style="background-color: #f8f9fa;">
-                    <div class="card-body">
-                        <span class="text-muted small fw-semibold d-block mb-1">Tanggal Input : {{ \Carbon\Carbon::parse($tanggalHariIni ?? now())->translatedFormat('d F Y') }}</span>
-                        <h4 class="fw-bold text-primary mb-0">Total Bersih Aset : Rp {{ number_format($totalBersihAset ?? 0, 0, ',', '.') }}</h4>
-                    </div>
-                </div>
-            </div>
-        </div>
+
     </div>
 </form>
 

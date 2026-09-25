@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Keuangan;
 use App\Models\Pembelian;
+use App\Models\Invoice;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 
 class KeuanganController extends Controller
 {
@@ -17,30 +17,70 @@ class KeuanganController extends Controller
         // Ambil data keuangan berdasarkan tanggal yang dipilih
         $keuangan = Keuangan::where('tanggal_input', $tanggal)->first();
 
-        // Ambil SEMUA riwayat data keuangan untuk ditampilkan sebagai tabel progress harian (diurutkan dari terbaru)
+        // Ambil SEMUA riwayat data keuangan untuk tabel progress harian
         $riwayatKeuangan = Keuangan::orderBy('tanggal_input', 'desc')->get();
 
-        // Kalkulasi Total Profit dari Histori Rekap (Berdasarkan tanggal)
-        $totalProfitData = Pembelian::whereDate('updated_at', $tanggal)
-            ->whereIn('status', ['Jual', 'Selesai', 'Sudah Ready'])
-            ->get();
+        // =========================================================================
+        // AMBIL DATA TRANSAKSI SELESAI / TERJUAL (Sesuai Logika Histori Rekap)
+        // =========================================================================
 
-        $jumlahUnit = $totalProfitData->count();
+        // 1. Ambil pembelian berstatus 'Selesai'
+        $pembelians = Pembelian::where('status', 'Selesai')->get();
 
-        // Kalkulasi profit dengan pengecekan properti dinamis aman
-        $totalProfitNominal = $totalProfitData->sum(function ($item) {
-            if (isset($item->laba)) return $item->laba;
-            if (isset($item->profit)) return $item->profit;
-            if (isset($item->untung)) return $item->untung;
+        // 2. Tarik Invoice untuk melengkapi data harga_jual & profit
+        $invoices = Invoice::all();
 
-            // Kalkulasi otomatis dari selisih harga jika kolom spesifik ada
-            $hargaJual = $item->harga_jual ?? $item->nominal_jual ?? $item->harga_jual_unit ?? 0;
-            $hargaBeli = $item->harga_beli ?? $item->total_modal ?? $item->modal ?? 0;
+        $jumlahUnit = 0;
+        $totalProfitNominal = 0;
 
-            return max(0, $hargaJual - $hargaBeli);
-        });
+        foreach ($pembelians as $item) {
+            $itemProfit = 0;
+            $isMatchDate = false;
 
-        // Daftar Bank Pilihan Dropdown
+            // Cek apakah ada record di invoice snapshot
+            foreach ($invoices as $inv) {
+                if (!empty($inv->pembelian_data) && is_array($inv->pembelian_data)) {
+                    foreach ($inv->pembelian_data as $snap) {
+                        if (
+                            (isset($snap['pembelian_id']) && $snap['pembelian_id'] == $item->id) ||
+                            (isset($snap['detail_imei']) && !empty($item->detail_imei) && $snap['detail_imei'] == $item->detail_imei)
+                        ) {
+                            // Ambil profit dari snapshot invoice
+                            $itemProfit = $snap['total_profit'] ?? (($snap['harga_jual'] ?? 0) - $item->total_modal);
+
+                            // Cek jika tanggal penerbitan invoice atau updated_at sesuai tanggal filter
+                            $tglInvoice = $inv->tanggal ? Carbon::parse($inv->tanggal)->format('Y-m-d') : null;
+                            $tglTerbit  = $item->tanggal_terbit ? Carbon::parse($item->tanggal_terbit)->format('Y-m-d') : null;
+                            $tglUpdated = Carbon::parse($item->updated_at)->format('Y-m-d');
+
+                            if ($tglInvoice === $tanggal || $tglTerbit === $tanggal || $tglUpdated === $tanggal) {
+                                $isMatchDate = true;
+                            }
+                            break 2;
+                        }
+                    }
+                }
+            }
+
+            // Fallback jika tidak ditemukan di invoice: gunakan updated_at/tanggal_terbit
+            if (!$isMatchDate) {
+                $tglTerbit  = $item->tanggal_terbit ? Carbon::parse($item->tanggal_terbit)->format('Y-m-d') : null;
+                $tglUpdated = Carbon::parse($item->updated_at)->format('Y-m-d');
+
+                if ($tglTerbit === $tanggal || $tglUpdated === $tanggal) {
+                    $isMatchDate = true;
+                    $itemProfit = ($item->harga_jual ?? 0) - $item->total_modal;
+                }
+            }
+
+            // Akumulasi unit & profit jika cocok dengan tanggal yang dipilih
+            if ($isMatchDate) {
+                $jumlahUnit++;
+                $totalProfitNominal += max(0, $itemProfit);
+            }
+        }
+
+        // Daftar Bank Dropdown
         $daftarBank = [
             'Bank Jago',
             'Bank BCA',
@@ -93,21 +133,50 @@ class KeuanganController extends Controller
             }
         }
 
-        // Kalkulasi profit secara aman tanpa tergantung pada nama kolom 'harga_jual' di SQL Query
-        $totalProfitData = Pembelian::whereDate('updated_at', $tanggal)
-            ->whereIn('status', ['Jual', 'Selesai', 'Sudah Ready'])
-            ->get();
+        // Hitung ulang profit tanggal ini
+        $pembelians = Pembelian::where('status', 'Selesai')->get();
+        $invoices = Invoice::all();
+        $totalProfitNominal = 0;
 
-        $totalProfitNominal = $totalProfitData->sum(function ($item) {
-            if (isset($item->laba)) return $item->laba;
-            if (isset($item->profit)) return $item->profit;
-            if (isset($item->untung)) return $item->untung;
+        foreach ($pembelians as $item) {
+            $itemProfit = 0;
+            $isMatchDate = false;
 
-            $hargaJual = $item->harga_jual ?? $item->nominal_jual ?? $item->harga_jual_unit ?? 0;
-            $hargaBeli = $item->harga_beli ?? $item->total_modal ?? $item->modal ?? 0;
+            foreach ($invoices as $inv) {
+                if (!empty($inv->pembelian_data) && is_array($inv->pembelian_data)) {
+                    foreach ($inv->pembelian_data as $snap) {
+                        if (
+                            (isset($snap['pembelian_id']) && $snap['pembelian_id'] == $item->id) ||
+                            (isset($snap['detail_imei']) && !empty($item->detail_imei) && $snap['detail_imei'] == $item->detail_imei)
+                        ) {
+                            $itemProfit = $snap['total_profit'] ?? (($snap['harga_jual'] ?? 0) - $item->total_modal);
+                            $tglInvoice = $inv->tanggal ? Carbon::parse($inv->tanggal)->format('Y-m-d') : null;
+                            $tglTerbit  = $item->tanggal_terbit ? Carbon::parse($item->tanggal_terbit)->format('Y-m-d') : null;
+                            $tglUpdated = Carbon::parse($item->updated_at)->format('Y-m-d');
 
-            return max(0, $hargaJual - $hargaBeli);
-        });
+                            if ($tglInvoice === $tanggal || $tglTerbit === $tanggal || $tglUpdated === $tanggal) {
+                                $isMatchDate = true;
+                            }
+                            break 2;
+                        }
+                    }
+                }
+            }
+
+            if (!$isMatchDate) {
+                $tglTerbit  = $item->tanggal_terbit ? Carbon::parse($item->tanggal_terbit)->format('Y-m-d') : null;
+                $tglUpdated = Carbon::parse($item->updated_at)->format('Y-m-d');
+
+                if ($tglTerbit === $tanggal || $tglUpdated === $tanggal) {
+                    $isMatchDate = true;
+                    $itemProfit = ($item->harga_jual ?? 0) - $item->total_modal;
+                }
+            }
+
+            if ($isMatchDate) {
+                $totalProfitNominal += max(0, $itemProfit);
+            }
+        }
 
         $totalBersihAset = $totalProfitNominal + $totalTempatAset - $totalHutang;
 
@@ -121,6 +190,6 @@ class KeuanganController extends Controller
         );
 
         return redirect()->route('keuangan.index', ['tanggal' => $tanggal])
-            ->with('success', 'Progress keuangan tanggal ' . Carbon::parse($tanggal)->translatedFormat('d F Y') . ' berhasil disimpan dan diperbarui!');
+            ->with('success', 'Progress keuangan tanggal ' . Carbon::parse($tanggal)->translatedFormat('d F Y') . ' berhasil disimpan!');
     }
 }
