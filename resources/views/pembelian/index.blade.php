@@ -11,12 +11,18 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h3 class="fw-bold text-dark mb-0">Rekap Pembelian</h3>
     <div class="d-flex align-items-center gap-2">
-        <!-- Tombol Ringkasan Salin Pesanan di Pojok Kanan Atas -->
-        <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#modalRingkasanSalin" title="Salin Ringkasan Pesanan">
-            <i class="bi bi-clipboard-check"></i> Salin Ringkasan
+        <!-- Tombol Terpisah 1: Rekap Total Kuantitas Barang per Toko -->
+        <button type="button" class="btn btn-outline-primary btn-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#modalTotalBarangPerToko" title="Lihat Total Kuantitas Barang per Toko">
+            <i class="bi bi-box-seam-fill me-1"></i> Total Barang
         </button>
+
+        <!-- Tombol Terpisah 2: Ringkasan Salin Pesanan Checklist -->
+        <button type="button" class="btn btn-outline-dark btn-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#modalRingkasanSalin" title="Salin Ringkasan Pesanan">
+            <i class="bi bi-clipboard-check me-1"></i> Salin Ringkasan
+        </button>
+
         <a href="{{ route('pembelian.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-lg"></i> Tambah Pembelian
+            <i class="bi bi-plus-lg me-1"></i> Tambah Pembelian
         </a>
     </div>
 </div>
@@ -444,7 +450,7 @@
     </div>
 </form>
 
-<!-- Modal Preview File / Gambar Interaktif (Zoom & Geser) di Halaman Sama -->
+<!-- Modal Preview File / Gambar Interaktif -->
 <div class="modal fade" id="modalFilePreview" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content bg-dark text-white shadow-lg border-0">
@@ -475,19 +481,68 @@
     </div>
 </div>
 
-<!-- Modal Salin Ringkasan Pesanan -->
+<!-- MODAL TERPISAH 1: Rekap Total Kuantitas Barang per Toko -->
+<div class="modal fade" id="modalTotalBarangPerToko" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold text-primary"><i class="bi bi-box-seam-fill me-2"></i>Rekap Kuantitas Barang per Toko</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                @php
+                // Kelompokkan data berdasarkan Toko (COD / Nama Toko)
+                $groupedTokoForRekap = $pembelians->groupBy(function($item) {
+                return strtolower($item->via ?? '') === 'cod' ? 'COD' : ($item->nama_toko ?: 'Lainnya');
+                });
+
+                // Generate Teks Murni Bersih Langsung via Blade Laravel
+                $plainTextRekapBarang = "";
+                foreach($groupedTokoForRekap as $tokoName => $itemsInToko) {
+                $plainTextRekapBarang .= $tokoName . "\n";
+                $rekapBarang = $itemsInToko->groupBy(function($item) {
+                return trim($item->nama_device ?: $item->nama_barang);
+                })->map->count();
+
+                foreach($rekapBarang as $namaBarang => $totalUnit) {
+                $plainTextRekapBarang .= "• " . $namaBarang . " : " . $totalUnit . " Unit\n";
+                }
+                $plainTextRekapBarang .= "\n";
+                }
+                $plainTextRekapBarang = trim($plainTextRekapBarang);
+                @endphp
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="text-muted small">Ringkasan total unit barang dari data yang tampil pada halaman ini.</span>
+                    <span class="badge bg-primary fs-6 px-3 py-2">Total: {{ $pembelians->count() }} Unit</span>
+                </div>
+
+                <!-- Textarea Teks Murni Interaktif sebagai Kotak Utama Tampilan -->
+                <textarea id="textRekapArea" class="form-control font-monospace border bg-light" rows="12" style="font-size: 0.85rem;" readonly>{{ $plainTextRekapBarang }}</textarea>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-primary btn-sm fw-bold px-4" id="btnSalinRekapBarang">
+                    <i class="bi bi-clipboard me-1"></i> Salin Rekap Barang
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL TERPISAH 2: Salin Ringkasan Pesanan Checklist -->
 <div class="modal fade" id="modalRingkasanSalin" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title fw-bold"><i class="bi bi-clipboard-check"></i> Ringkasan Pesanan per Toko</h5>
+                <h5 class="modal-title fw-bold"><i class="bi bi-clipboard-check me-2"></i>Ringkasan Pesanan per Toko</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
             <form action="{{ route('pembelian.saveChecklist') }}" method="POST">
                 @csrf
                 <div class="modal-body">
-                    <div class="mb-2 text-muted small">Centang pesanan lalu klik tombol <strong>Simpan Checklist</strong> agar status centang tersimpan permanen di database:</div>
+                    <div class="mb-2 text-muted small">Centang pesanan lalu klik tombol <strong>Simpan Checklist</strong> agar status centang tersimpan:</div>
 
                     @php
                     $groupedByToko = $pembelians->groupBy(function($item) {
@@ -495,19 +550,22 @@
                     });
                     @endphp
 
-                    <div id="containerRingkasanChecklist" class="border rounded p-3 bg-light font-monospace overflow-auto" style="max-height: 320px; font-size: 0.85rem;">
+                    <div id="containerRingkasanChecklist" class="border rounded p-3 bg-light font-monospace overflow-auto" style="max-height: 380px; font-size: 0.85rem;">
                         @foreach($groupedByToko as $tokoName => $itemsGroup)
-                        <div class="fw-bold text-dark mb-1">{{ $tokoName }}</div>
+                        <div class="fw-bold text-dark mb-1 toko-title-heading" data-toko="{{ $tokoName }}">{{ $tokoName }}</div>
                         @foreach($itemsGroup as $idx => $item)
-                        <div class="form-check mb-1 item-checklist-row">
+                        @php
+                        $labelTeksPesanan = ($idx + 1) . '. ' . ($item->kode_manual ?? '-') . ' - ' . ($item->nama_alamat ?? '-') . ' - ' . trim(($item->nama_device ?: $item->nama_barang));
+                        @endphp
+                        <div class="form-check mb-1 item-checklist-wrapper">
                             <input class="form-check-input ringkasan-checkbox"
                                 type="checkbox"
                                 name="checked_ids[]"
                                 value="{{ $item->id }}"
                                 {{ $item->is_checked ? 'checked' : '' }}
                                 id="checkRingkasan{{ $item->id }}">
-                            <label class="form-check-label text-dark" for="checkRingkasan{{ $item->id }}">
-                                {{ $idx + 1 }}. {{ $item->kode_manual ?? '-' }} - {{ $item->nama_alamat ?? '-' }} - {{ trim(($item->nama_device ?: $item->nama_barang)) }}
+                            <label class="form-check-label text-dark" for="checkRingkasan{{ $item->id }}" data-raw-text="{{ $labelTeksPesanan }}">
+                                {{ $labelTeksPesanan }}
                             </label>
                         </div>
                         @endforeach
@@ -515,7 +573,8 @@
                         @endforeach
                     </div>
 
-                    <textarea id="textRingkasanSalin" class="d-none"></textarea>
+                    <!-- Textarea Tersembunyi Khusus Menampung Hasil Teks Murni Ringkasan -->
+                    <textarea id="hiddenRingkasanText" class="d-none"></textarea>
                 </div>
                 <div class="modal-footer justify-content-between">
                     <div>
@@ -526,7 +585,7 @@
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button>
                         <button type="button" class="btn btn-primary btn-sm fw-bold px-4" id="btnSalinClipboard">
-                            <i class="bi bi-clipboard"></i> Salin ke Clipboard
+                            <i class="bi bi-clipboard me-1"></i> Salin ke Clipboard
                         </button>
                     </div>
                 </div>
@@ -539,14 +598,54 @@
     let activeScanners = {};
     let panzoomInstance = null;
 
+    // Fungsi Utama Menyalin Teks Murni via DOM Selection (Bekerja 100% di HTTP & HTTPS)
+    function executeTextareaCopy(textareaElement, btnElement, defaultBtnHtml) {
+        if (!textareaElement) return;
+
+        // Buka temporary jika hidden
+        const wasHidden = textareaElement.classList.contains('d-none');
+        if (wasHidden) {
+            textareaElement.classList.remove('d-none');
+            textareaElement.style.position = 'fixed';
+            textareaElement.style.left = '-9999px';
+            textareaElement.style.top = '-9999px';
+        }
+
+        textareaElement.focus();
+        textareaElement.select();
+        textareaElement.setSelectionRange(0, 99999);
+
+        let copied = false;
+        try {
+            copied = document.execCommand('copy');
+        } catch (err) {
+            copied = false;
+        }
+
+        if (wasHidden) {
+            textareaElement.classList.add('d-none');
+        }
+
+        if (copied) {
+            btnElement.innerHTML = '<i class="bi bi-check-lg me-1"></i> Berhasil Disalin!';
+            btnElement.classList.remove('btn-primary');
+            btnElement.classList.add('btn-success');
+            setTimeout(() => {
+                btnElement.innerHTML = defaultBtnHtml;
+                btnElement.classList.remove('btn-success');
+                btnElement.classList.add('btn-primary');
+            }, 2000);
+        } else {
+            alert("Gagal menyalin. Silakan seleksi manual teks tersebut lalu tekan Ctrl+C.");
+        }
+    }
+
     function startScanner(id) {
         const wrapper = document.getElementById(`readerWrapper${id}`);
         if (!wrapper) return;
         wrapper.classList.remove('d-none');
 
-        if (activeScanners[id]) {
-            return;
-        }
+        if (activeScanners[id]) return;
 
         const html5QrCode = new Html5Qrcode(`reader${id}`);
         activeScanners[id] = html5QrCode;
@@ -571,13 +670,9 @@
             config,
             (decodedText, decodedResult) => {
                 const imeiInput = document.getElementById(`imeiInput${id}`);
-                if (imeiInput) {
-                    imeiInput.value = decodedText;
-                }
+                if (imeiInput) imeiInput.value = decodedText;
 
-                if (navigator.vibrate) {
-                    navigator.vibrate(100);
-                }
+                if (navigator.vibrate) navigator.vibrate(100);
 
                 stopScanner(id);
             },
@@ -609,6 +704,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
+        // Panzoom Init
         const previewImage = document.getElementById('previewImageElement');
         if (previewImage) {
             panzoomInstance = Panzoom(previewImage, {
@@ -628,6 +724,7 @@
             });
         }
 
+        // File Preview
         document.querySelectorAll('.preview-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 const url = this.getAttribute('data-url');
@@ -654,9 +751,7 @@
                     imgElement.classList.remove('d-none');
 
                     imgElement.setAttribute('src', url);
-                    if (panzoomInstance) {
-                        panzoomInstance.reset();
-                    }
+                    if (panzoomInstance) panzoomInstance.reset();
                 }
 
                 const previewModal = new bootstrap.Modal(document.getElementById('modalFilePreview'));
@@ -664,14 +759,58 @@
             });
         });
 
-        const modalFilePreview = document.getElementById('modalFilePreview');
-        if (modalFilePreview) {
-            modalFilePreview.addEventListener('hidden.bs.modal', function() {
-                document.getElementById('previewPdfElement').setAttribute('src', '');
-                document.getElementById('previewImageElement').setAttribute('src', '');
+        // Generate Teks Ringkasan Pesanan Checklist
+        const containerRingkasan = document.getElementById('containerRingkasanChecklist');
+        const hiddenRingkasanText = document.getElementById('hiddenRingkasanText');
+
+        function updateRingkasanDataText() {
+            if (!containerRingkasan || !hiddenRingkasanText) return;
+            let arrayLines = [];
+            containerRingkasan.querySelectorAll('.toko-title-heading, .item-checklist-wrapper').forEach(node => {
+                if (node.classList.contains('toko-title-heading')) {
+                    arrayLines.push(node.getAttribute('data-toko'));
+                } else if (node.classList.contains('item-checklist-wrapper')) {
+                    let checkbox = node.querySelector('.ringkasan-checkbox');
+                    let labelEl = node.querySelector('label');
+                    if (checkbox && labelEl) {
+                        let mark = checkbox.checked ? "[✔]" : "[ ]";
+                        arrayLines.push(`${mark} ${labelEl.getAttribute('data-raw-text')}`);
+                    }
+                }
+            });
+            hiddenRingkasanText.value = arrayLines.join('\n').trim();
+        }
+
+        // Inisialisasi awal
+        updateRingkasanDataText();
+        if (containerRingkasan) {
+            containerRingkasan.addEventListener('change', updateRingkasanDataText);
+        }
+
+        // 1. EVENT KLIK: Salin Rekap Total Barang
+        const btnSalinRekapBarang = document.getElementById('btnSalinRekapBarang');
+        const textRekapArea = document.getElementById('textRekapArea');
+
+        if (btnSalinRekapBarang && textRekapArea) {
+            btnSalinRekapBarang.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                executeTextareaCopy(textRekapArea, btnSalinRekapBarang, '<i class="bi bi-clipboard me-1"></i> Salin Rekap Barang');
             });
         }
 
+        // 2. EVENT KLIK: Salin Ringkasan Pesanan Checklist
+        const btnSalinClipboard = document.getElementById('btnSalinClipboard');
+        if (btnSalinClipboard && hiddenRingkasanText) {
+            btnSalinClipboard.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                updateRingkasanDataText();
+                executeTextareaCopy(hiddenRingkasanText, btnSalinClipboard, '<i class="bi bi-clipboard me-1"></i> Salin ke Clipboard');
+            });
+        }
+
+        // Checkbox Bulk Status Massal
         const selectAllCheckbox = document.getElementById('selectAll');
         const itemCheckboxes = document.querySelectorAll('.item-checkbox');
         const bulkActionBar = document.getElementById('bulkActionBar');
@@ -689,9 +828,7 @@
 
         if (selectAllCheckbox) {
             selectAllCheckbox.addEventListener('change', function() {
-                itemCheckboxes.forEach(cb => {
-                    cb.checked = selectAllCheckbox.checked;
-                });
+                itemCheckboxes.forEach(cb => cb.checked = selectAllCheckbox.checked);
                 updateBulkBar();
             });
         }
@@ -705,64 +842,7 @@
             });
         });
 
-        const ringkasanCheckboxes = document.querySelectorAll('.ringkasan-checkbox');
-        const textRingkasanSalin = document.getElementById('textRingkasanSalin');
-
-        function updateRingkasanText() {
-            let container = document.getElementById('containerRingkasanChecklist');
-            if (!container) return;
-            let outputText = "";
-
-            let currentToko = "";
-            container.querySelectorAll('.fw-bold, .form-check').forEach(el => {
-                if (el.classList.contains('fw-bold')) {
-                    currentToko = el.textContent.trim();
-                    outputText += currentToko + "\n";
-                } else if (el.classList.contains('form-check')) {
-                    let cb = el.querySelector('input[type="checkbox"]');
-                    let labelText = el.querySelector('label').textContent.trim();
-                    let mark = cb.checked ? "[✔]" : "[ ]";
-                    outputText += mark + " " + labelText + "\n";
-                }
-            });
-            if (textRingkasanSalin) textRingkasanSalin.value = outputText.trim();
-        }
-
-        updateRingkasanText();
-
-        ringkasanCheckboxes.forEach(cb => {
-            cb.addEventListener('change', function() {
-                updateRingkasanText();
-            });
-        });
-
-        const btnSalinClipboard = document.getElementById('btnSalinClipboard');
-        if (btnSalinClipboard && textRingkasanSalin) {
-            btnSalinClipboard.addEventListener('click', function() {
-                updateRingkasanText();
-                navigator.clipboard.writeText(textRingkasanSalin.value).then(() => {
-                    const originalText = btnSalinClipboard.innerHTML;
-                    btnSalinClipboard.innerHTML = '<i class="bi bi-check-lg"></i> Berhasil Disalin!';
-                    btnSalinClipboard.classList.remove('btn-primary');
-                    btnSalinClipboard.classList.add('btn-success');
-                    setTimeout(() => {
-                        btnSalinClipboard.innerHTML = originalText;
-                        btnSalinClipboard.classList.remove('btn-success');
-                        btnSalinClipboard.classList.add('btn-primary');
-                    }, 2000);
-                }).catch(err => {
-                    alert('Gagal menyalin teks: ' + err);
-                });
-            });
-        }
-
-        document.querySelectorAll('.modal-edit-item').forEach(modalEl => {
-            modalEl.addEventListener('hidden.bs.modal', function() {
-                const id = this.dataset.itemId;
-                if (id) stopScanner(id);
-            });
-        });
-
+        // Search Input Delay Submit
         const searchInput = document.getElementById('searchInput');
         const searchForm = document.getElementById('searchForm');
         let timer;
@@ -780,6 +860,7 @@
             });
         }
 
+        // Select Via Toggle Edit Modal
         document.addEventListener('change', function(e) {
             if (e.target && e.target.classList.contains('select-via-toggle')) {
                 const selectElement = e.target;
@@ -800,6 +881,7 @@
             }
         });
 
+        // Rupiah Format
         function formatRupiah(angka) {
             let number_string = angka.replace(/[^,\d]/g, '').toString(),
                 split = number_string.split(','),

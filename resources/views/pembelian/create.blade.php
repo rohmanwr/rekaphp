@@ -96,8 +96,8 @@
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">IMEI / Serial Number</label>
                         <div class="input-group">
-                            <textarea name="items[0][detail_imei]" class="form-control target-imei" rows="1" placeholder="Tempel atau Scan IMEI di sini..."></textarea>
-                            <button type="button" class="btn btn-outline-primary btn-scan-imei" title="Scan Barcode IMEI via Kamera">
+                            <textarea id="imei_input_0" name="items[0][detail_imei]" class="form-control target-imei" rows="1" placeholder="Tempel atau Scan IMEI di sini..."></textarea>
+                            <button type="button" class="btn btn-outline-primary btn-scan-imei" data-target="imei_input_0" title="Scan Barcode IMEI via Kamera">
                                 <i class="bi bi-qr-code-scan"></i> Scan
                             </button>
                         </div>
@@ -130,7 +130,7 @@
 </form>
 
 <!-- Modal Scanner Kamera Barcode -->
-<div class="modal fade" id="modalScanner" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="modalScanner" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
@@ -138,8 +138,11 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body text-center">
-                <div id="reader" style="width: 100%; min-height: 250px; background: #f8f9fa;"></div>
-                <small class="text-muted mt-2 d-block">Arahkan kamera ke barcode IMEI pada dus atau HP.</small>
+                <div class="alert alert-info py-2 small mb-2">
+                    <i class="bi bi-info-circle"></i> Arahkan kamera ke barcode/QR Code IMEI pada dus HP. Barcode akan otomatis terdeteksi.
+                </div>
+                <div id="reader" class="border rounded overflow-hidden" style="width: 100%; max-width: 450px; margin: 0 auto; min-height: 250px; background-color: #000;"></div>
+                <button type="button" class="btn btn-sm btn-secondary mt-3 px-3" data-bs-dismiss="modal">Tutup Kamera</button>
             </div>
         </div>
     </div>
@@ -151,14 +154,16 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         let rowCount = 1;
-        let activeImeiInput = null;
-        let html5QrcodeScanner = null;
+        let currentTargetId = null;
+        let html5QrCodeScannerInstance = null;
+        let scanLocked = false;
 
         const containerRows = document.getElementById('containerRows');
         const btnAddRow = document.getElementById('btnAddRow');
-        const modalScanner = new bootstrap.Modal(document.getElementById('modalScanner'));
+        const modalElement = document.getElementById('modalScanner');
+        const modalScanner = new bootstrap.Modal(modalElement);
 
-        // Load Data Master dari Server ke JSON JS murni
+        // Load Data Master
         const barangsData = JSON.parse('{!! json_encode($barangs ?? []) !!}');
         const tokosData = JSON.parse('{!! json_encode($tokos ?? []) !!}');
 
@@ -197,7 +202,86 @@
             return split[1] != undefined ? rupiah + ',' + split[1] : rupiah;
         }
 
-        // Bind Event listeners untuk setiap baris
+        // Matikan Kamera dengan Mutlak
+        async function stopScanner() {
+            if (html5QrCodeScannerInstance) {
+                try {
+                    await html5QrCodeScannerInstance.stop();
+                } catch (e) {
+                    console.warn("Scanner sudah mati:", e);
+                }
+                try {
+                    html5QrCodeScannerInstance.clear();
+                } catch (e) {}
+                html5QrCodeScannerInstance = null;
+            }
+            // Kosongkan elemen reader agar canvas kamera lama hancur
+            const readerDiv = document.getElementById('reader');
+            if (readerDiv) readerDiv.innerHTML = '';
+        }
+
+        // Jalankan Scanner Kamera
+        async function startScanner() {
+            await stopScanner();
+            scanLocked = false;
+
+            html5QrCodeScannerInstance = new Html5Qrcode("reader");
+            const config = {
+                fps: 15,
+                qrbox: function(viewfinderWidth, viewfinderHeight) {
+                    return {
+                        width: Math.floor(viewfinderWidth * 0.8),
+                        height: Math.floor(viewfinderHeight * 0.5)
+                    };
+                },
+                aspectRatio: 1.0,
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true
+                }
+            };
+
+            html5QrCodeScannerInstance.start({
+                    facingMode: "environment"
+                },
+                config,
+                function(decodedText) {
+                    if (scanLocked) return;
+                    scanLocked = true; // Kunci segera agar callback beruntun terabaikan
+
+                    if (currentTargetId) {
+                        const inputEl = document.getElementById(currentTargetId);
+                        if (inputEl) {
+                            // Masukkan hasil scan langsung ke ID elemen baris terkait
+                            inputEl.value = decodedText;
+                        }
+                    }
+
+                    if (navigator.vibrate) {
+                        navigator.vibrate(100);
+                    }
+
+                    modalScanner.hide();
+                },
+                function(errorMessage) {}
+            ).catch(err => {
+                alert("Gagal mengakses kamera: " + err);
+                modalScanner.hide();
+            });
+        }
+
+        // Event Modal Scanner
+        if (modalElement) {
+            modalElement.addEventListener('shown.bs.modal', function() {
+                startScanner();
+            });
+
+            modalElement.addEventListener('hidden.bs.modal', function() {
+                stopScanner();
+                currentTargetId = null;
+            });
+        }
+
+        // Event listener untuk setiap baris multi input
         function bindRowEvents(row) {
             const selectVia = row.querySelector('.select-via-toggle');
             const inputViaManual = row.querySelector('.input-via-manual');
@@ -205,7 +289,6 @@
             const inputQtyCod = row.querySelector('.input-qty-cod');
             const inputRupiah = row.querySelector('.input-rupiah');
             const btnScan = row.querySelector('.btn-scan-imei');
-            const targetImei = row.querySelector('.target-imei');
 
             if (selectVia) {
                 selectVia.addEventListener('change', function() {
@@ -236,9 +319,10 @@
                 });
             }
 
+            // Bind tombol scan dengan ID unik per baris
             if (btnScan) {
                 btnScan.addEventListener('click', function() {
-                    activeImeiInput = targetImei;
+                    currentTargetId = this.getAttribute('data-target');
                     modalScanner.show();
                 });
             }
@@ -272,6 +356,7 @@
         if (btnAddRow) {
             btnAddRow.addEventListener('click', function() {
                 const index = rowCount++;
+                const uniqueInputId = `imei_input_${index}`;
                 const template = `
                 <div class="card border-0 shadow-sm mb-4 item-row" data-index="${index}">
                     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom-0">
@@ -338,8 +423,8 @@
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold">IMEI / Serial Number</label>
                                 <div class="input-group">
-                                    <textarea name="items[${index}][detail_imei]" class="form-control target-imei" rows="1" placeholder="Tempel atau Scan IMEI di sini..."></textarea>
-                                    <button type="button" class="btn btn-outline-primary btn-scan-imei" title="Scan Barcode IMEI via Kamera">
+                                    <textarea id="${uniqueInputId}" name="items[${index}][detail_imei]" class="form-control target-imei" rows="1" placeholder="Tempel atau Scan IMEI di sini..."></textarea>
+                                    <button type="button" class="btn btn-outline-primary btn-scan-imei" data-target="${uniqueInputId}" title="Scan Barcode IMEI via Kamera">
                                         <i class="bi bi-qr-code-scan"></i> Scan
                                     </button>
                                 </div>
@@ -359,38 +444,7 @@
             });
         }
 
-        // Modal Scanner
-        const modalElement = document.getElementById('modalScanner');
-        if (modalElement) {
-            modalElement.addEventListener('shown.bs.modal', function() {
-                if (!html5QrcodeScanner) {
-                    html5QrcodeScanner = new Html5QrcodeScanner("reader", {
-                        fps: 10,
-                        qrbox: {
-                            width: 250,
-                            height: 150
-                        }
-                    }, false);
-                    html5QrcodeScanner.render(onScanSuccess);
-                }
-            });
-
-            modalElement.addEventListener('hidden.bs.modal', function() {
-                if (html5QrcodeScanner) {
-                    html5QrcodeScanner.clear();
-                    html5QrcodeScanner = null;
-                }
-            });
-        }
-
-        function onScanSuccess(decodedText, decodedResult) {
-            if (activeImeiInput) {
-                const currentVal = activeImeiInput.value.trim();
-                activeImeiInput.value = currentVal ? currentVal + "\n" + decodedText : decodedText;
-            }
-            modalScanner.hide();
-        }
-
+        // Form Submit Handler
         const formElement = document.getElementById('formMultiPembelian');
         if (formElement) {
             formElement.addEventListener('submit', function() {
