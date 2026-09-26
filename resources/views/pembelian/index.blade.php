@@ -124,6 +124,15 @@
     </div>
 </div>
 
+<!-- Form Hidden untuk Quick Update Status Individu (Menghindari Nested Form HTML) -->
+@foreach($pembelians as $item)
+<form id="formStatus{{ $item->id }}" action="{{ route('pembelian.updateStatus', $item->id) }}" method="POST" class="d-none">
+    @csrf
+    @method('PATCH')
+    <input type="hidden" name="status" id="inputStatus{{ $item->id }}">
+</form>
+@endforeach
+
 <!-- Form Update Status Massal -->
 <form action="{{ route('pembelian.updateStatusMassal') }}" method="POST" id="formMassal">
     @csrf
@@ -199,19 +208,15 @@
                             <td>{{ \Carbon\Carbon::parse($item->tanggal_beli)->format('d/m/Y') }}</td>
                             <td class="fw-bold">Rp {{ number_format($item->total_modal, 0, ',', '.') }}</td>
                             <td>
-                                <!-- Quick Update Status Langsung via Form PATCH -->
-                                <form action="{{ route('pembelian.updateStatus', $item->id) }}" method="POST" class="d-inline">
-                                    @csrf
-                                    @method('PATCH')
-                                    <select name="status" class="form-select form-select-sm rounded-pill fw-semibold" onchange="this.form.submit()" style="width: fit-content; min-width: 140px;">
-                                        <option value="Belum Ready" {{ $item->status == 'Belum Ready' ? 'selected' : '' }}>⏳ Belum Ready</option>
-                                        <option value="Sudah Ready" {{ $item->status == 'Sudah Ready' ? 'selected' : '' }}>✅ Sudah Ready</option>
-                                        <option value="Sudah Diambil" {{ $item->status == 'Sudah Diambil' ? 'selected' : '' }}>📦 Sudah Diambil</option>
-                                        <option value="Bermasalah" {{ $item->status == 'Bermasalah' ? 'selected' : '' }}>⚠️ Bermasalah</option>
-                                        <option value="Jual" {{ $item->status == 'Jual' ? 'selected' : '' }}>🏷️ Jual</option>
-                                        <option value="Selesai" {{ $item->status == 'Selesai' ? 'selected' : '' }}>🏁 Selesai</option>
-                                    </select>
-                                </form>
+                                <!-- Quick Update Status Langsung via JS Trigger -->
+                                <select class="form-select form-select-sm rounded-pill fw-semibold" onchange="quickUpdateStatus({{ $item->id }}, this.value)" style="width: fit-content; min-width: 140px;">
+                                    <option value="Belum Ready" {{ $item->status == 'Belum Ready' ? 'selected' : '' }}>⏳ Belum Ready</option>
+                                    <option value="Sudah Ready" {{ $item->status == 'Sudah Ready' ? 'selected' : '' }}>✅ Sudah Ready</option>
+                                    <option value="Sudah Diambil" {{ $item->status == 'Sudah Diambil' ? 'selected' : '' }}>📦 Sudah Diambil</option>
+                                    <option value="Bermasalah" {{ $item->status == 'Bermasalah' ? 'selected' : '' }}>⚠️ Bermasalah</option>
+                                    <option value="Jual" {{ $item->status == 'Jual' ? 'selected' : '' }}>🏷️ Jual</option>
+                                    <option value="Selesai" {{ $item->status == 'Selesai' ? 'selected' : '' }}>🏁 Selesai</option>
+                                </select>
                             </td>
                             <td>
                                 @if(!empty($item->file_lampiran) && count($item->file_lampiran) > 0)
@@ -242,181 +247,13 @@
                                         <i class="bi bi-pencil-square"></i>
                                     </button>
 
-                                    <form action="{{ route('pembelian.destroy', $item->id) }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin menghapus data rekap pembelian ini?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-danger fw-semibold" title="Hapus Transaksi">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
+                                    <!-- Form Hapus Luar Form Massal (Menggunakan form attribute) -->
+                                    <button type="submit" form="formDelete{{ $item->id }}" class="btn btn-sm btn-danger fw-semibold" title="Hapus Transaksi" onclick="return confirm('Apakah Anda yakin ingin menghapus data rekap pembelian ini?')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
                                 </div>
                             </td>
                         </tr>
-
-                        <!-- Modal Edit Pembelian -->
-                        <div class="modal fade modal-edit-item" id="modalEditPembelian{{ $item->id }}" data-item-id="{{ $item->id }}" tabindex="-1" aria-hidden="true">
-                            <div class="modal-dialog modal-lg">
-                                <div class="modal-content text-start">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title fw-bold">Edit Rekap Pembelian ({{ $item->kode_otomatis }})</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="stopScanner({{ $item->id }})"></button>
-                                    </div>
-                                    <form action="{{ route('pembelian.update', $item->id) }}" method="POST" enctype="multipart/form-data" class="form-pembelian">
-                                        @csrf
-                                        @method('PUT')
-                                        <div class="modal-body">
-                                            <div class="row g-3">
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Kode Transaksi Manual (Opsional)</label>
-                                                    <input type="text" name="kode_manual" class="form-control" value="{{ old('kode_manual', $item->kode_manual) }}" placeholder="No. Invoice / Resi Toko">
-                                                </div>
-
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Nama Alamat (Opsional)</label>
-                                                    <input type="text" name="nama_alamat" class="form-control" value="{{ old('nama_alamat', $item->nama_alamat) }}" placeholder="Keterangan alamat / gudang...">
-                                                </div>
-
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Nama Barang Pembelian</label>
-                                                    <select name="nama_barang" class="form-select" required>
-                                                        <option value="" disabled>-- Pilih Barang --</option>
-                                                        @foreach($barangs as $brg)
-                                                        <option value="{{ $brg->nama_barang }}" {{ $item->nama_barang == $brg->nama_barang ? 'selected' : '' }}>
-                                                            {{ $brg->nama_barang }}
-                                                        </option>
-                                                        @endforeach
-                                                    </select>
-                                                </div>
-
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Nama Device (Spesifik)</label>
-                                                    <select name="nama_device" class="form-select">
-                                                        <option value="" selected>-- Pilih Device --</option>
-                                                        @foreach($devices as $dev)
-                                                        <option value="{{ $dev->nama_device }}" {{ $item->nama_device == $dev->nama_device ? 'selected' : '' }}>
-                                                            [{{ $dev->kode_device }}] {{ $dev->nama_device }}
-                                                        </option>
-                                                        @endforeach
-                                                    </select>
-                                                </div>
-
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Nama Toko Pembelian</label>
-                                                    <select name="nama_toko" class="form-select" required>
-                                                        <option value="" disabled>-- Pilih Toko --</option>
-                                                        @foreach($tokos as $tk)
-                                                        <option value="{{ $tk->nama_toko }}" {{ $item->nama_toko == $tk->nama_toko ? 'selected' : '' }}>
-                                                            {{ $tk->nama_toko }}
-                                                        </option>
-                                                        @endforeach
-                                                    </select>
-                                                </div>
-
-                                                @php
-                                                $isCustomVia = !in_array($item->via, ['Tokopedia', 'Shopee', 'Lazada', 'TikTok']);
-                                                @endphp
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Transaksi Beli Via</label>
-                                                    <select id="selectViaEdit{{ $item->id }}" class="form-select select-via-toggle" data-target="#inputViaEdit{{ $item->id }}" required>
-                                                        <option value="Tokopedia" {{ $item->via == 'Tokopedia' ? 'selected' : '' }}>Tokopedia</option>
-                                                        <option value="Shopee" {{ $item->via == 'Shopee' ? 'selected' : '' }}>Shopee</option>
-                                                        <option value="Lazada" {{ $item->via == 'Lazada' ? 'selected' : '' }}>Lazada</option>
-                                                        <option value="TikTok" {{ $item->via == 'TikTok' ? 'selected' : '' }}>TikTok</option>
-                                                        <option value="Lainnya" {{ $isCustomVia ? 'selected' : '' }}>Lainnya (Ketik Manual)</option>
-                                                    </select>
-                                                    <input
-                                                        type="text"
-                                                        id="inputViaEdit{{ $item->id }}"
-                                                        name="via"
-                                                        class="form-control mt-2 {{ $isCustomVia ? '' : 'd-none' }}"
-                                                        value="{{ $item->via }}"
-                                                        placeholder="Ketik platform/via transaksi manual..."
-                                                        {{ $isCustomVia ? 'required' : '' }}>
-                                                </div>
-
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Tanggal Beli</label>
-                                                    <input type="date" name="tanggal_beli" class="form-control" value="{{ old('tanggal_beli', $item->tanggal_beli) }}" required>
-                                                </div>
-
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Total Modal (Rp)</label>
-                                                    <input
-                                                        type="text"
-                                                        name="total_modal"
-                                                        class="form-control input-rupiah"
-                                                        value="{{ number_format($item->total_modal, 0, ',', '.') }}"
-                                                        placeholder="Misal: 8.500.000"
-                                                        required
-                                                        autocomplete="off">
-                                                </div>
-
-                                                <div class="col-md-6">
-                                                    <label class="form-label fw-semibold">Status Barang</label>
-                                                    <select name="status" class="form-select" required>
-                                                        <option value="Belum Ready" {{ $item->status == 'Belum Ready' ? 'selected' : '' }}>⏳ Belum Ready</option>
-                                                        <option value="Sudah Ready" {{ $item->status == 'Sudah Ready' ? 'selected' : '' }}>✅ Sudah Ready</option>
-                                                        <option value="Sudah Diambil" {{ $item->status == 'Sudah Diambil' ? 'selected' : '' }}>📦 Sudah Diambil</option>
-                                                        <option value="Bermasalah" {{ $item->status == 'Bermasalah' ? 'selected' : '' }}>⚠️ Bermasalah</option>
-                                                        <option value="Jual" {{ $item->status == 'Jual' ? 'selected' : '' }}>🏷️ Jual</option>
-                                                        <option value="Selesai" {{ $item->status == 'Selesai' ? 'selected' : '' }}>🏁 Selesai</option>
-                                                    </select>
-                                                </div>
-
-                                                <div class="col-12 bg-light p-3 rounded border">
-                                                    <label class="form-label fw-bold text-primary"><i class="bi bi-barcode me-1"></i> Nomor IMEI / Detail IMEI</label>
-                                                    <div class="input-group">
-                                                        <input type="text" id="imeiInput{{ $item->id }}" name="detail_imei" class="form-control font-monospace" value="{{ old('detail_imei', $item->detail_imei) }}" placeholder="Ketik manual atau scan otomatis kamera...">
-                                                        <button type="button" class="btn btn-outline-primary fw-semibold" onclick="startScanner({{ $item->id }})">
-                                                            <i class="bi bi-camera"></i> Auto Scan Barcode
-                                                        </button>
-                                                    </div>
-
-                                                    <div id="readerWrapper{{ $item->id }}" class="mt-2 d-none text-center">
-                                                        <div class="alert alert-info py-2 small mb-2">
-                                                            <i class="bi bi-info-circle"></i> Arahkan kamera ke barcode/QR Code IMEI pada dus HP. Barcode akan otomatis terdeteksi.
-                                                        </div>
-                                                        <div id="reader{{ $item->id }}" class="border rounded overflow-hidden" style="width: 100%; max-width: 450px; margin: 0 auto; min-height: 250px; background-color: #000;"></div>
-                                                        <button type="button" class="btn btn-sm btn-secondary mt-2 px-3" onclick="stopScanner({{ $item->id }})">Tutup Kamera</button>
-                                                    </div>
-                                                </div>
-
-                                                @if(!empty($item->file_lampiran) && count($item->file_lampiran) > 0)
-                                                <div class="col-12">
-                                                    <label class="form-label fw-semibold">Lampiran Ter-upload (Centang untuk menghapus saat update):</label>
-                                                    <div class="d-flex flex-wrap gap-2">
-                                                        @foreach($item->file_lampiran as $idx => $filePath)
-                                                        <div class="border rounded p-2 bg-light d-flex flex-column align-items-start gap-1" style="min-width: 120px;">
-                                                            <span class="small fw-semibold text-truncate w-100 text-muted">
-                                                                <i class="bi bi-paperclip"></i> File {{ $idx + 1 }}
-                                                            </span>
-                                                            <div class="form-check form-check-inline m-0 pt-1 border-top w-100">
-                                                                <input class="form-check-input bg-danger border-danger" type="checkbox" name="delete_files[]" value="{{ $idx }}" id="delFile{{ $item->id }}_{{ $idx }}">
-                                                                <label class="form-check-label small text-danger fw-semibold" for="delFile{{ $item->id }}_{{ $idx }}" style="font-size: 0.75rem;">
-                                                                    Hapus File
-                                                                </label>
-                                                            </div>
-                                                        </div>
-                                                        @endforeach
-                                                    </div>
-                                                </div>
-                                                @endif
-
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Tambah Lampiran Baru (Bisa Banyak)</label>
-                                                    <input type="file" name="file_lampiran[]" class="form-control" accept=".jpg,.jpeg,.png,.pdf" multiple>
-                                                    <small class="text-muted fs-7">Bisa pilih lebih dari 1 file (JPG, PNG, PDF maks 2MB/file)</small>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-light" data-bs-dismiss="modal" onclick="stopScanner({{ $item->id }})">Batal</button>
-                                            <button type="submit" class="btn btn-warning text-white fw-semibold">Update Pembelian</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
                         @empty
                         <tr>
                             <td colspan="11" class="text-center py-4 text-muted">Tidak ada data rekap pembelian.</td>
@@ -449,6 +286,179 @@
         </div>
     </div>
 </form>
+
+<!-- Form Hapus Transaksi & Modal Edit diletakkan di luar Form Massal -->
+@foreach($pembelians as $item)
+<form id="formDelete{{ $item->id }}" action="{{ route('pembelian.destroy', $item->id) }}" method="POST" class="d-none">
+    @csrf
+    @method('DELETE')
+</form>
+
+<!-- Modal Edit Pembelian -->
+<div class="modal fade modal-edit-item" id="modalEditPembelian{{ $item->id }}" data-item-id="{{ $item->id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content text-start">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Edit Rekap Pembelian ({{ $item->kode_otomatis }})</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="stopScanner({{ $item->id }})"></button>
+            </div>
+            <form action="{{ route('pembelian.update', $item->id) }}" method="POST" enctype="multipart/form-data" class="form-pembelian">
+                @csrf
+                @method('PUT')
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Kode Transaksi Manual (Opsional)</label>
+                            <input type="text" name="kode_manual" class="form-control" value="{{ old('kode_manual', $item->kode_manual) }}" placeholder="No. Invoice / Resi Toko">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Nama Alamat (Opsional)</label>
+                            <input type="text" name="nama_alamat" class="form-control" value="{{ old('nama_alamat', $item->nama_alamat) }}" placeholder="Keterangan alamat / gudang...">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Nama Barang Pembelian</label>
+                            <select name="nama_barang" class="form-select" required>
+                                <option value="" disabled>-- Pilih Barang --</option>
+                                @foreach($barangs as $brg)
+                                <option value="{{ $brg->nama_barang }}" {{ $item->nama_barang == $brg->nama_barang ? 'selected' : '' }}>
+                                    {{ $brg->nama_barang }}
+                                </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Nama Device (Spesifik)</label>
+                            <select name="nama_device" class="form-select">
+                                <option value="" selected>-- Pilih Device --</option>
+                                @foreach($devices as $dev)
+                                <option value="{{ $dev->nama_device }}" {{ $item->nama_device == $dev->nama_device ? 'selected' : '' }}>
+                                    [{{ $dev->kode_device }}] {{ $dev->nama_device }}
+                                </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Nama Toko Pembelian</label>
+                            <select name="nama_toko" class="form-select" required>
+                                <option value="" disabled>-- Pilih Toko --</option>
+                                @foreach($tokos as $tk)
+                                <option value="{{ $tk->nama_toko }}" {{ $item->nama_toko == $tk->nama_toko ? 'selected' : '' }}>
+                                    {{ $tk->nama_toko }}
+                                </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        @php
+                        $isCustomVia = !in_array($item->via, ['Tokopedia', 'Shopee', 'Lazada', 'TikTok']);
+                        @endphp
+                        <div class="col-md-6">
+                            <label class="form-label">Transaksi Beli Via</label>
+                            <select id="selectViaEdit{{ $item->id }}" class="form-select select-via-toggle" data-target="#inputViaEdit{{ $item->id }}" required>
+                                <option value="Tokopedia" {{ $item->via == 'Tokopedia' ? 'selected' : '' }}>Tokopedia</option>
+                                <option value="Shopee" {{ $item->via == 'Shopee' ? 'selected' : '' }}>Shopee</option>
+                                <option value="Lazada" {{ $item->via == 'Lazada' ? 'selected' : '' }}>Lazada</option>
+                                <option value="TikTok" {{ $item->via == 'TikTok' ? 'selected' : '' }}>TikTok</option>
+                                <option value="Lainnya" {{ $isCustomVia ? 'selected' : '' }}>Lainnya (Ketik Manual)</option>
+                            </select>
+                            <input
+                                type="text"
+                                id="inputViaEdit{{ $item->id }}"
+                                name="via"
+                                class="form-control mt-2 {{ $isCustomVia ? '' : 'd-none' }}"
+                                value="{{ $item->via }}"
+                                placeholder="Ketik platform/via transaksi manual..."
+                                {{ $isCustomVia ? 'required' : '' }}>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Tanggal Beli</label>
+                            <input type="date" name="tanggal_beli" class="form-control" value="{{ old('tanggal_beli', $item->tanggal_beli) }}" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Total Modal (Rp)</label>
+                            <input
+                                type="text"
+                                name="total_modal"
+                                class="form-control input-rupiah"
+                                value="{{ number_format($item->total_modal, 0, ',', '.') }}"
+                                placeholder="Misal: 8.500.000"
+                                required
+                                autocomplete="off">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Status Barang</label>
+                            <select name="status" class="form-select" required>
+                                <option value="Belum Ready" {{ $item->status == 'Belum Ready' ? 'selected' : '' }}>⏳ Belum Ready</option>
+                                <option value="Sudah Ready" {{ $item->status == 'Sudah Ready' ? 'selected' : '' }}>✅ Sudah Ready</option>
+                                <option value="Sudah Diambil" {{ $item->status == 'Sudah Diambil' ? 'selected' : '' }}>📦 Sudah Diambil</option>
+                                <option value="Bermasalah" {{ $item->status == 'Bermasalah' ? 'selected' : '' }}>⚠️ Bermasalah</option>
+                                <option value="Jual" {{ $item->status == 'Jual' ? 'selected' : '' }}>🏷️ Jual</option>
+                                <option value="Selesai" {{ $item->status == 'Selesai' ? 'selected' : '' }}>🏁 Selesai</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12 bg-light p-3 rounded border">
+                            <label class="form-label fw-bold text-primary"><i class="bi bi-barcode me-1"></i> Nomor IMEI / Detail IMEI</label>
+                            <div class="input-group">
+                                <input type="text" id="imeiInput{{ $item->id }}" name="detail_imei" class="form-control font-monospace" value="{{ old('detail_imei', $item->detail_imei) }}" placeholder="Ketik manual atau scan otomatis kamera...">
+                                <button type="button" class="btn btn-outline-primary fw-semibold" onclick="startScanner({{ $item->id }})">
+                                    <i class="bi bi-camera"></i> Auto Scan Barcode
+                                </button>
+                            </div>
+
+                            <div id="readerWrapper{{ $item->id }}" class="mt-2 d-none text-center">
+                                <div class="alert alert-info py-2 small mb-2">
+                                    <i class="bi bi-info-circle"></i> Arahkan kamera ke barcode/QR Code IMEI pada dus HP. Barcode akan otomatis terdeteksi.
+                                </div>
+                                <div id="reader{{ $item->id }}" class="border rounded overflow-hidden" style="width: 100%; max-width: 450px; margin: 0 auto; min-height: 250px; background-color: #000;"></div>
+                                <button type="button" class="btn btn-sm btn-secondary mt-2 px-3" onclick="stopScanner({{ $item->id }})">Tutup Kamera</button>
+                            </div>
+                        </div>
+
+                        @if(!empty($item->file_lampiran) && count($item->file_lampiran) > 0)
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Lampiran Ter-upload (Centang untuk menghapus saat update):</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach($item->file_lampiran as $idx => $filePath)
+                                <div class="border rounded p-2 bg-light d-flex flex-column align-items-start gap-1" style="min-width: 120px;">
+                                    <span class="small fw-semibold text-truncate w-100 text-muted">
+                                        <i class="bi bi-paperclip"></i> File {{ $idx + 1 }}
+                                    </span>
+                                    <div class="form-check form-check-inline m-0 pt-1 border-top w-100">
+                                        <input class="form-check-input bg-danger border-danger" type="checkbox" name="delete_files[]" value="{{ $idx }}" id="delFile{{ $item->id }}_{{ $idx }}">
+                                        <label class="form-check-label small text-danger fw-semibold" for="delFile{{ $item->id }}_{{ $idx }}" style="font-size: 0.75rem;">
+                                            Hapus File
+                                        </label>
+                                    </div>
+                                </div>
+                                @endforeach
+                            </div>
+                        </div>
+                        @endif
+
+                        <div class="col-md-6">
+                            <label class="form-label">Tambah Lampiran Baru (Bisa Banyak)</label>
+                            <input type="file" name="file_lampiran[]" class="form-control" accept=".jpg,.jpeg,.png,.pdf" multiple>
+                            <small class="text-muted fs-7">Bisa pilih lebih dari 1 file (JPG, PNG, PDF maks 2MB/file)</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal" onclick="stopScanner({{ $item->id }})">Batal</button>
+                    <button type="submit" class="btn btn-warning text-white fw-semibold">Update Pembelian</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endforeach
 
 <!-- Modal Preview File / Gambar Interaktif -->
 <div class="modal fade" id="modalFilePreview" tabindex="-1" aria-hidden="true">
@@ -598,11 +608,20 @@
     let activeScanners = {};
     let panzoomInstance = null;
 
-    // Fungsi Utama Menyalin Teks Murni via DOM Selection (Bekerja 100% di HTTP & HTTPS)
+    // Fungsi Trigger Quick Update Status Individu
+    function quickUpdateStatus(itemId, newStatus) {
+        const inputStatus = document.getElementById(`inputStatus${itemId}`);
+        const formStatus = document.getElementById(`formStatus${itemId}`);
+        if (inputStatus && formStatus) {
+            inputStatus.value = newStatus;
+            formStatus.submit();
+        }
+    }
+
+    // Fungsi Utama Menyalin Teks Murni via DOM Selection
     function executeTextareaCopy(textareaElement, btnElement, defaultBtnHtml) {
         if (!textareaElement) return;
 
-        // Buka temporary jika hidden
         const wasHidden = textareaElement.classList.contains('d-none');
         if (wasHidden) {
             textareaElement.classList.remove('d-none');
