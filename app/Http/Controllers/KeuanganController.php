@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Keuangan;
-use App\Models\Pembelian;
 use App\Models\Invoice;
 use App\Models\Barang;
 use Illuminate\Http\Request;
@@ -21,99 +20,81 @@ class KeuanganController extends Controller
         // Ambil SEMUA riwayat data keuangan untuk tabel progress harian
         $riwayatKeuangan = Keuangan::orderBy('tanggal_input', 'desc')->get();
 
-        // Master barang sebagai fallback
+        // Master barang sebagai fallback jika harga jual di snapshot kosong
         $masterBarangs = Barang::all()->keyBy('nama_barang');
 
-        // Tarik semua data pembelian yang sudah Selesai / Terjual
-        $pembelians = Pembelian::where('status', 'Selesai')->get();
-        $invoices   = Invoice::all();
+        // =========================================================================
+        // AMBIL INVOICE HANYA PADA TANGGAL YANG DIPILIH
+        // =========================================================================
+        $invoices = Invoice::whereDate('tanggal', $tanggal)->get();
 
         $jumlahUnit = 0;
         $totalProfitNominal = 0;
 
-        foreach ($pembelians as $item) {
-            // Cek apakah tanggal terbit / updated_at / tanggal invoice cocok dengan filter
-            $tglItem = null;
-            if (!empty($item->tanggal_terbit)) {
-                $tglItem = Carbon::parse($item->tanggal_terbit)->format('Y-m-d');
-            } elseif (!empty($item->updated_at)) {
-                $tglItem = Carbon::parse($item->updated_at)->format('Y-m-d');
+        foreach ($invoices as $inv) {
+            $rawPembelianData = $inv->pembelian_data;
+            if (is_string($rawPembelianData)) {
+                $rawPembelianData = json_decode($rawPembelianData, true);
             }
 
-            // Jika tanggal cocok DENGAN tanggal yang dipilih di form
-            if ($tglItem === $tanggal) {
-                $hargaJualItem = (float) ($item->harga_jual ?? 0);
-                $modalItem     = (float) ($item->total_modal ?? 0);
+            $rawItems = $inv->items;
+            if (is_string($rawItems)) {
+                $rawItems = json_decode($rawItems, true);
+            }
 
-                // Cari apakah ada snapshot harga jual khusus di invoice
-                foreach ($invoices as $inv) {
-                    $rawPembelianData = $inv->pembelian_data;
-                    if (is_string($rawPembelianData)) {
-                        $rawPembelianData = json_decode($rawPembelianData, true);
-                    }
+            $sourceItems = !empty($rawPembelianData) && is_array($rawPembelianData)
+                ? $rawPembelianData
+                : (is_array($rawItems) ? $rawItems : []);
 
-                    if (!empty($rawPembelianData) && is_array($rawPembelianData)) {
-                        foreach ($rawPembelianData as $snap) {
-                            if (
-                                (isset($snap['pembelian_id']) && $snap['pembelian_id'] == $item->id) ||
-                                (isset($snap['detail_imei']) && !empty($item->detail_imei) && $snap['detail_imei'] == $item->detail_imei)
-                            ) {
-                                if (isset($snap['harga_jual']) && $snap['harga_jual'] > 0) {
-                                    $hargaJualItem = (float) $snap['harga_jual'];
-                                }
-                                break 2;
+            foreach ($sourceItems as $it) {
+                $namaBarangIt = $it['nama_barang'] ?? ($it['deskripsi'] ?? 'Barang');
+
+                // 1. Dapatkan harga jual per item dari snapshot invoice
+                $hargaJualItem = 0;
+                if (isset($it['harga_jual']) && is_numeric($it['harga_jual']) && $it['harga_jual'] > 0) {
+                    $hargaJualItem = (float) $it['harga_jual'];
+                } elseif (isset($it['harga']) && is_numeric($it['harga']) && $it['harga'] > 0) {
+                    $hargaJualItem = (float) $it['harga'];
+                } elseif (isset($it['jumlah']) && isset($it['kuantitas']) && $it['kuantitas'] > 0) {
+                    $hargaJualItem = (float) ($it['jumlah'] / $it['kuantitas']);
+                } elseif (isset($it['jumlah']) && is_numeric($it['jumlah']) && $it['jumlah'] > 0) {
+                    $hargaJualItem = (float) $it['jumlah'];
+                } else {
+                    $masterBrg = $masterBarangs[$namaBarangIt] ?? null;
+                    $hargaJualItem = (float) ($masterBrg->harga_jual ?? ($masterBrg->harga ?? 0));
+                }
+
+                // 2. Dapatkan modal per item
+                $modalItem = isset($it['total_modal']) ? (float) $it['total_modal'] : 0;
+
+                // 3. Ekstrak IMEI jika penjualan berisi banyak unit
+                $imeis = [];
+                if (isset($it['imei_list']) && is_array($it['imei_list']) && count($it['imei_list']) > 0) {
+                    $imeis = $it['imei_list'];
+                } else {
+                    $rawImei = $it['detail_imei'] ?? ($it['deskripsi_imei'] ?? ($it['imei'] ?? ''));
+                    if (!empty($rawImei) && $rawImei !== '-') {
+                        $cleaned = str_replace(["\r", ","], "\n", $rawImei);
+                        $lines = explode("\n", $cleaned);
+                        foreach ($lines as $line) {
+                            $trimmed = trim($line);
+                            if (!empty($trimmed)) {
+                                $imeis[] = $trimmed;
                             }
                         }
                     }
                 }
 
-                // Jika harga jual masih 0, ambil dari master barang
-                if ($hargaJualItem == 0) {
-                    $masterBrg = $masterBarangs[$item->nama_barang] ?? null;
-                    $hargaJualItem = (float) ($masterBrg->harga_jual ?? ($masterBrg->harga ?? 0));
-                }
-
-                $profitItem = $hargaJualItem - $modalItem;
-
-                $jumlahUnit++;
-                $totalProfitNominal += $profitItem;
-            }
-        }
-
-        // FALLBACK: Jika pencocokan tanggal harian 0 unit, kalkulasikan SEMUA data invoice yang ada
-        if ($jumlahUnit === 0) {
-            foreach ($invoices as $inv) {
-                $rawPembelianData = $inv->pembelian_data;
-                if (is_string($rawPembelianData)) {
-                    $rawPembelianData = json_decode($rawPembelianData, true);
-                }
-
-                $rawItems = $inv->items;
-                if (is_string($rawItems)) {
-                    $rawItems = json_decode($rawItems, true);
-                }
-
-                $sourceItems = !empty($rawPembelianData) && is_array($rawPembelianData)
-                    ? $rawPembelianData
-                    : (is_array($rawItems) ? $rawItems : []);
-
-                foreach ($sourceItems as $it) {
-                    $namaBarangIt = $it['nama_barang'] ?? ($it['deskripsi'] ?? 'Barang');
-
-                    $hargaJualHistori = 0;
-                    if (isset($it['harga_jual']) && is_numeric($it['harga_jual']) && $it['harga_jual'] > 0) {
-                        $hargaJualHistori = (float) $it['harga_jual'];
-                    } elseif (isset($it['harga']) && is_numeric($it['harga']) && $it['harga'] > 0) {
-                        $hargaJualHistori = (float) $it['harga'];
-                    } else {
-                        $masterBrg = $masterBarangs[$namaBarangIt] ?? null;
-                        $hargaJualHistori = (float) ($masterBrg->harga_jual ?? 0);
+                // 4. Hitung Unit & Profit
+                if (count($imeis) > 1) {
+                    $hargaSatuanUnit = count($imeis) > 0 ? ($hargaJualItem / count($imeis)) : $hargaJualItem;
+                    foreach ($imeis as $singleImei) {
+                        $totalProfitNominal += ($hargaSatuanUnit - $modalItem);
+                        $jumlahUnit++;
                     }
-
-                    $modalIt = isset($it['total_modal']) ? (float) $it['total_modal'] : 0;
-                    $profitIt = isset($it['total_profit']) ? (float) $it['total_profit'] : ($hargaJualHistori - $modalIt);
-
-                    $totalProfitNominal += $profitIt;
+                } else {
+                    $profitItem = isset($it['total_profit']) ? (float) $it['total_profit'] : ($hargaJualItem - $modalItem);
+                    $totalProfitNominal += $profitItem;
                     $jumlahUnit++;
                 }
             }
@@ -172,43 +153,72 @@ class KeuanganController extends Controller
             }
         }
 
-        // Hitung ulang total profit
+        // Hitung ulang total profit KHUSUS pada tanggal input dari Invoice Penjualan
         $masterBarangs = Barang::all()->keyBy('nama_barang');
-        $pembelians = Pembelian::where('status', 'Selesai')->get();
-        $invoices = Invoice::all();
+        $invoices = Invoice::whereDate('tanggal', $tanggal)->get();
         $totalProfitNominal = 0;
 
-        foreach ($pembelians as $item) {
-            $hargaJualItem = (float) ($item->harga_jual ?? 0);
-            $modalItem     = (float) ($item->total_modal ?? 0);
+        foreach ($invoices as $inv) {
+            $rawPembelianData = $inv->pembelian_data;
+            if (is_string($rawPembelianData)) {
+                $rawPembelianData = json_decode($rawPembelianData, true);
+            }
 
-            foreach ($invoices as $inv) {
-                $rawPembelianData = $inv->pembelian_data;
-                if (is_string($rawPembelianData)) {
-                    $rawPembelianData = json_decode($rawPembelianData, true);
+            $rawItems = $inv->items;
+            if (is_string($rawItems)) {
+                $rawItems = json_decode($rawItems, true);
+            }
+
+            $sourceItems = !empty($rawPembelianData) && is_array($rawPembelianData)
+                ? $rawPembelianData
+                : (is_array($rawItems) ? $rawItems : []);
+
+            foreach ($sourceItems as $it) {
+                $namaBarangIt = $it['nama_barang'] ?? ($it['deskripsi'] ?? 'Barang');
+
+                $hargaJualItem = 0;
+                if (isset($it['harga_jual']) && is_numeric($it['harga_jual']) && $it['harga_jual'] > 0) {
+                    $hargaJualItem = (float) $it['harga_jual'];
+                } elseif (isset($it['harga']) && is_numeric($it['harga']) && $it['harga'] > 0) {
+                    $hargaJualItem = (float) $it['harga'];
+                } elseif (isset($it['jumlah']) && isset($it['kuantitas']) && $it['kuantitas'] > 0) {
+                    $hargaJualItem = (float) ($it['jumlah'] / $it['kuantitas']);
+                } elseif (isset($it['jumlah']) && is_numeric($it['jumlah']) && $it['jumlah'] > 0) {
+                    $hargaJualItem = (float) $it['jumlah'];
+                } else {
+                    $masterBrg = $masterBarangs[$namaBarangIt] ?? null;
+                    $hargaJualItem = (float) ($masterBrg->harga_jual ?? ($masterBrg->harga ?? 0));
                 }
 
-                if (!empty($rawPembelianData) && is_array($rawPembelianData)) {
-                    foreach ($rawPembelianData as $snap) {
-                        if (
-                            (isset($snap['pembelian_id']) && $snap['pembelian_id'] == $item->id) ||
-                            (isset($snap['detail_imei']) && !empty($item->detail_imei) && $snap['detail_imei'] == $item->detail_imei)
-                        ) {
-                            if (isset($snap['harga_jual']) && $snap['harga_jual'] > 0) {
-                                $hargaJualItem = (float) $snap['harga_jual'];
+                $modalItem = isset($it['total_modal']) ? (float) $it['total_modal'] : 0;
+
+                $imeis = [];
+                if (isset($it['imei_list']) && is_array($it['imei_list']) && count($it['imei_list']) > 0) {
+                    $imeis = $it['imei_list'];
+                } else {
+                    $rawImei = $it['detail_imei'] ?? ($it['deskripsi_imei'] ?? ($it['imei'] ?? ''));
+                    if (!empty($rawImei) && $rawImei !== '-') {
+                        $cleaned = str_replace(["\r", ","], "\n", $rawImei);
+                        $lines = explode("\n", $cleaned);
+                        foreach ($lines as $line) {
+                            $trimmed = trim($line);
+                            if (!empty($trimmed)) {
+                                $imeis[] = $trimmed;
                             }
-                            break 2;
                         }
                     }
                 }
-            }
 
-            if ($hargaJualItem == 0) {
-                $masterBrg = $masterBarangs[$item->nama_barang] ?? null;
-                $hargaJualItem = (float) ($masterBrg->harga_jual ?? ($masterBrg->harga ?? 0));
+                if (count($imeis) > 1) {
+                    $hargaSatuanUnit = count($imeis) > 0 ? ($hargaJualItem / count($imeis)) : $hargaJualItem;
+                    foreach ($imeis as $singleImei) {
+                        $totalProfitNominal += ($hargaSatuanUnit - $modalItem);
+                    }
+                } else {
+                    $profitItem = isset($it['total_profit']) ? (float) $it['total_profit'] : ($hargaJualItem - $modalItem);
+                    $totalProfitNominal += $profitItem;
+                }
             }
-
-            $totalProfitNominal += ($hargaJualItem - $modalItem);
         }
 
         $totalBersihAset = $totalProfitNominal + $totalTempatAset - $totalHutang;

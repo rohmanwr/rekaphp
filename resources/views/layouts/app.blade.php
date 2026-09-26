@@ -162,7 +162,7 @@
 <body>
 
     <div id="wrapper">
-        <!-- Sidebar Overlay (Menutup sidebar saat area luar disentuh di HP) -->
+        <!-- Sidebar Overlay -->
         <div id="sidebarOverlay" class="sidebar-overlay"></div>
 
         <!-- Sidebar -->
@@ -179,14 +179,14 @@
 
             @php
             $authUser = Auth::user();
-            $isAdmin = $authUser && strtolower($authUser->role) === 'admin';
-            $permissions = $authUser->permissions;
+            $isAdmin = $authUser && strtolower($authUser->role ?? '') === 'admin';
+            $permissions = $authUser ? $authUser->permissions : null;
             $isNewOrEmpty = is_null($permissions);
 
             $canAccess = function($key) use ($isAdmin, $permissions, $isNewOrEmpty) {
             if ($isAdmin) return true;
             if ($isNewOrEmpty) return true;
-            return in_array($key, $permissions);
+            return is_array($permissions) && in_array($key, $permissions);
             };
             @endphp
 
@@ -341,7 +341,7 @@
     <!-- Bootstrap 5 JS Bundle via CDN -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Script Toggle Responsive Sidebar yang Dioptimalkan -->
+    <!-- Script Toggle Responsive Sidebar -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const sidebar = document.getElementById('sidebar');
@@ -383,7 +383,6 @@
                 });
             }
 
-            // Tutup sidebar otomatis saat link di dalam sidebar diklik pada perangkat mobile
             const sidebarLinks = sidebar.querySelectorAll('a');
             sidebarLinks.forEach(link => {
                 link.addEventListener('click', function() {

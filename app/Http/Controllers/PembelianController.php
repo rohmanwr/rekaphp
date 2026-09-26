@@ -59,48 +59,71 @@ class PembelianController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
-            'kode_manual'     => 'required|string|max:255',
-            'nama_alamat'     => 'nullable|string|max:255',
-            'nama_barang'     => 'required|string|max:255',
-            'nama_toko'       => 'required|string|max:255',
-            'via'             => 'required|string|max:255',
-            'tanggal_beli'    => 'required|date',
-            'total_modal'     => 'required',
-            'status'          => 'required|in:Belum Ready,Sudah Ready,Sudah Diambil,Bermasalah,Jual,Selesai',
-            'detail_imei'     => 'nullable|string',
-            'qty'             => 'nullable|integer|min:1',
-            'file_lampiran.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
-        ]);
+        // 1. Dapatkan daftar item multi-input
+        $itemsData = $request->input('items', []);
 
-        $totalModalBersih = str_replace('.', '', $request->total_modal);
-        $qty = ($request->via === 'COD' && $request->filled('qty')) ? (int) $request->qty : 1;
+        // Fallback jika dikirim secara single-input standar
+        if (empty($itemsData) && $request->has('nama_barang')) {
+            $itemsData = [
+                [
+                    'kode_manual'  => $request->input('kode_manual'),
+                    'nama_alamat'  => $request->input('nama_alamat'),
+                    'nama_barang'  => $request->input('nama_barang'),
+                    'nama_toko'    => $request->input('nama_toko'),
+                    'via'          => $request->input('via'),
+                    'tanggal_beli' => $request->input('tanggal_beli'),
+                    'total_modal'  => $request->input('total_modal'),
+                    'status'       => $request->input('status', 'Belum Ready'),
+                    'detail_imei'  => $request->input('detail_imei'),
+                    'qty'          => $request->input('qty', 1),
+                ]
+            ];
+        }
 
-        $files = [];
-        if ($request->hasFile('file_lampiran')) {
-            foreach ($request->file('file_lampiran') as $file) {
-                $files[] = $file->store('lampiran_pembelian', 'public');
+        if (empty($itemsData)) {
+            return redirect()->back()->with('error', 'Tidak ada data transaksi yang dikirim.');
+        }
+
+        $totalTercatat = 0;
+
+        foreach ($itemsData as $idx => $item) {
+            $totalModalBersih = str_replace('.', '', $item['total_modal'] ?? 0);
+            $via = $item['via'] ?? 'Tokopedia';
+            $qty = ($via === 'COD' && !empty($item['qty'])) ? (int) $item['qty'] : 1;
+
+            // Pengurusan file lampiran per baris item
+            $files = [];
+            if ($request->hasFile("items.{$idx}.file_lampiran")) {
+                foreach ($request->file("items.{$idx}.file_lampiran") as $file) {
+                    $files[] = $file->store('lampiran_pembelian', 'public');
+                }
+            } elseif ($request->hasFile('file_lampiran') && $idx === 0) {
+                // Fallback untuk single-input upload
+                foreach ($request->file('file_lampiran') as $file) {
+                    $files[] = $file->store('lampiran_pembelian', 'public');
+                }
+            }
+
+            for ($i = 0; $i < $qty; $i++) {
+                Pembelian::create([
+                    'user_id'       => Auth::id(),
+                    'kode_manual'   => $item['kode_manual'] ?? null,
+                    'nama_alamat'   => $item['nama_alamat'] ?? null,
+                    'nama_barang'   => $item['nama_barang'] ?? null,
+                    'nama_toko'     => $item['nama_toko'] ?? null,
+                    'via'           => $via,
+                    'tanggal_beli'  => $item['tanggal_beli'] ?? date('Y-m-d'),
+                    'total_modal'   => $totalModalBersih,
+                    'status'        => $item['status'] ?? 'Belum Ready',
+                    'detail_imei'   => $item['detail_imei'] ?? null,
+                    'kode_otomatis' => 'TRX-' . date('Ymd') . '-' . rand(100, 999),
+                    'file_lampiran' => !empty($files) ? $files : null,
+                ]);
+                $totalTercatat++;
             }
         }
 
-        for ($i = 0; $i < $qty; $i++) {
-            Pembelian::create([
-                'user_id'         => Auth::id(),
-                'kode_manual'     => $request->kode_manual,
-                'nama_alamat'     => $request->nama_alamat,
-                'nama_barang'     => $request->nama_barang,
-                'nama_toko'       => $request->nama_toko,
-                'via'             => $request->via,
-                'tanggal_beli'    => $request->tanggal_beli,
-                'total_modal'     => $totalModalBersih,
-                'status'          => $request->status,
-                'detail_imei'     => $request->input('detail_imei'),
-                'kode_otomatis'   => 'TRX-' . date('Ymd') . '-' . rand(100, 999),
-                'file_lampiran'   => !empty($files) ? $files : null,
-            ]);
-        }
-
-        return redirect()->route('pembelian.index')->with('success', 'Berhasil mencatat ' . $qty . ' data pembelian baru!');
+        return redirect()->route('pembelian.index')->with('success', "Berhasil mencatat {$totalTercatat} data pembelian baru!");
     }
 
     public function updateStatus(Request $request, $id)
@@ -203,6 +226,7 @@ class PembelianController extends Controller
                 return $query->where(function ($q) use ($search) {
                     $q->where('kode_manual', 'like', "%{$search}%")
                         ->orWhere('kode_otomatis', 'like', "%{$search}%")
+                        ->orWhere('nama_alamat', 'like', "%{$search}%")
                         ->orWhere('nama_barang', 'like', "%{$search}%")
                         ->orWhere('nama_toko', 'like', "%{$search}%")
                         ->orWhere('detail_imei', 'like', "%{$search}%")

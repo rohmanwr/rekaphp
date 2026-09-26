@@ -27,7 +27,7 @@
                     type="text"
                     name="search"
                     class="form-control border-start-0 ps-0"
-                    placeholder="Cari berdasarkan Kode, Nama Barang, Toko, atau IMEI..."
+                    placeholder="Cari berdasarkan Kode, No. Pesanan, Alamat, Nama Barang, Toko, atau IMEI..."
                     value="{{ $search ?? '' }}"
                     autocomplete="off">
                 @if(!empty($search))
@@ -40,7 +40,7 @@
     </div>
 </div>
 
-<!-- Tabel Histori Rekap -->
+<!-- Tabel Histori Rekap Ringkas -->
 <div class="card border-0 shadow-sm">
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -48,12 +48,11 @@
                 <thead class="table-light">
                     <tr>
                         <th class="text-center" style="width: 50px;">No</th>
-                        <th>Kode Sistem</th>
-                        <th>Barang & Toko</th>
+                        <th>Kode & No. Pesanan</th>
+                        <th>Barang, Toko & Alamat</th>
                         <th>IMEI / Serial</th>
                         <th>Via</th>
-                        <th>Tgl Beli</th>
-                        <th>Tanggal Terbit</th>
+                        <th>Tanggal Beli / Terbit</th>
                         <th>No. Invoice</th>
                         <th>Total Modal</th>
                         <th>Harga Jual</th>
@@ -66,11 +65,21 @@
                         <td class="text-center fw-semibold text-muted">
                             {{ $loop->iteration }}
                         </td>
-                        <td><span class="badge bg-dark">{{ $item->kode_otomatis }}</span></td>
+
+                        <!-- Digabung: Kode Sistem & No. Pesanan -->
+                        <td>
+                            <span class="badge bg-dark mb-1 d-inline-block">{{ $item->kode_otomatis }}</span><br>
+                            <small class="text-muted"><i class="bi bi-hash"></i> {{ $item->kode_manual ?? '-' }}</small>
+                        </td>
+
+                        <!-- Digabung: Barang, Toko & Alamat -->
                         <td>
                             <strong>{{ $item->nama_barang }}</strong><br>
-                            <small class="text-muted"><i class="bi bi-shop"></i> {{ $item->nama_toko }}</small>
+                            <small class="text-muted"><i class="bi bi-shop"></i> {{ $item->nama_toko }}</small><br>
+                            <small class="text-danger"><i class="bi bi-geo-alt"></i> {{ $item->nama_alamat ?? '-' }}</small>
                         </td>
+
+                        <!-- IMEI / Serial -->
                         <td>
                             @if(!empty($item->detail_imei))
                             <span class="font-monospace text-dark small bg-light p-1 rounded border d-inline-block text-break" style="white-space: pre-line;">{{ $item->detail_imei }}</span>
@@ -78,6 +87,8 @@
                             <span class="text-muted small">-</span>
                             @endif
                         </td>
+
+                        <!-- Via -->
                         <td>
                             @php
                             $badgeColor = match($item->via) {
@@ -90,18 +101,21 @@
                             @endphp
                             <span class="badge {{ $badgeColor }}">{{ $item->via }}</span>
                         </td>
-                        <td>{{ \Carbon\Carbon::parse($item->tanggal_beli)->format('d/m/Y') }}</td>
 
-                        <!-- Data Tanggal Terbit -->
+                        <!-- Digabung: Tanggal Beli & Tanggal Terbit -->
                         <td>
-                            @if(!empty($item->tanggal_terbit))
-                            {{ \Carbon\Carbon::parse($item->tanggal_terbit)->format('d/m/Y') }}
-                            @else
-                            <span class="text-muted small">-</span>
-                            @endif
+                            <small class="d-block"><strong>Beli:</strong> {{ \Carbon\Carbon::parse($item->tanggal_beli)->format('d/m/Y') }}</small>
+                            <small class="text-muted">
+                                <strong>Terbit:</strong>
+                                @if(!empty($item->tanggal_terbit))
+                                {{ \Carbon\Carbon::parse($item->tanggal_terbit)->format('d/m/Y') }}
+                                @else
+                                -
+                                @endif
+                            </small>
                         </td>
 
-                        <!-- Data No. Invoice -->
+                        <!-- No. Invoice -->
                         <td>
                             @if(!empty($item->no_invoice))
                             <span class="badge bg-secondary font-monospace">{{ $item->no_invoice }}</span>
@@ -110,21 +124,22 @@
                             @endif
                         </td>
 
+                        <!-- Total Modal -->
                         <td class="fw-bold text-secondary">Rp {{ number_format($item->total_modal ?? 0, 0, ',', '.') }}</td>
 
-                        <!-- Harga Jual Sesuai Invoice -->
+                        <!-- Harga Jual -->
                         <td class="fw-bold text-success">
                             Rp {{ number_format($item->harga_jual ?? 0, 0, ',', '.') }}
                         </td>
 
-                        <!-- Total Profit Sesuai Invoice -->
+                        <!-- Total Profit -->
                         <td class="fw-bold {{ ($item->total_profit ?? 0) >= 0 ? 'text-primary' : 'text-danger' }}">
                             Rp {{ number_format($item->total_profit ?? 0, 0, ',', '.') }}
                         </td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="11" class="text-center py-5 text-muted">
+                        <td colspan="10" class="text-center py-5 text-muted">
                             <i class="bi bi-archive fs-1 d-block mb-2 text-secondary"></i>
                             Belum ada data rekap pembelian dengan status Selesai.
                         </td>

@@ -195,7 +195,7 @@
                         </td>
                         <td>
                             @if(!empty($row->tempat_aset) && is_array($row->tempat_aset))
-                            @foreach($row->tempat_aset as $bankName =>$nomVal)
+                            @foreach($row->tempat_aset as $bankName => $nomVal)
                             <span class="badge bg-light text-dark border me-1 mb-1">{{ $bankName }}: Rp {{ number_format($nomVal, 0, ',', '.') }}</span>
                             @endforeach
                             @else
@@ -204,7 +204,7 @@
                         </td>
                         <td>
                             @if(!empty($row->hutang) && is_array($row->hutang))
-                            @foreach($row->hutang as $pemberiName =>$nomHVal)
+                            @foreach($row->hutang as $pemberiName => $nomHVal)
                             <span class="badge bg-light text-danger border me-1 mb-1">{{ $pemberiName }}: Rp {{ number_format($nomHVal, 0, ',', '.') }}</span>
                             @endforeach
                             @else

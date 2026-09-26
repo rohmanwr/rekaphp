@@ -11,7 +11,6 @@ use App\Http\Controllers\Auth\DirectPasswordResetController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\KeuanganController;
 
-
 Route::get('/', function () {
     return redirect()->route('login');
 });
@@ -29,7 +28,7 @@ Route::middleware('guest')->group(function () {
 // ==========================================
 Route::middleware(['auth', 'verified'])->group(function () {
 
-    // Dashboard & Rekap (Bisa diakses umum atau diatur dasarnya)
+    // Dashboard & Rekap
     Route::get('/dashboard', [RekapController::class, 'index'])->name('dashboard');
     Route::get('/rekap', [RekapController::class, 'index'])->name('rekap.index');
 
@@ -37,7 +36,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-
 
     // ==========================================
     // 1. MENU PEMBELIAN & INPUT BARANG (Permission: pembelian)
@@ -47,23 +45,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/pembelian/create', [PembelianController::class, 'create'])->name('pembelian.create');
         Route::post('/pembelian', [PembelianController::class, 'store'])->name('pembelian.store');
 
-        // <-- Rute statis HARUS DI ATAS sebelum rute yang menggunakan {id}
+        // Route Statis
         Route::patch('/pembelian/update-status-massal', [PembelianController::class, 'updateStatusMassal'])->name('pembelian.updateStatusMassal');
+        Route::post('/pembelian/save-checklist', [PembelianController::class, 'saveChecklist'])->name('pembelian.saveChecklist');
+
+        // Route dengan Parameter {id}
         Route::patch('/pembelian/{id}/toggle-check', [PembelianController::class, 'toggleCheck'])->name('pembelian.toggleCheck');
         Route::put('/pembelian/{id}', [PembelianController::class, 'update'])->name('pembelian.update');
         Route::patch('/pembelian/{id}/status', [PembelianController::class, 'updateStatus'])->name('pembelian.updateStatus');
         Route::delete('/pembelian/{id}', [PembelianController::class, 'destroy'])->name('pembelian.destroy');
-        Route::post('/pembelian/save-checklist', [PembelianController::class, 'saveChecklist'])->name('pembelian.saveChecklist');
     });
-
 
     // ==========================================
     // 2. MENU BARANG SIAP JUAL (Permission: siap_jual)
     // ==========================================
     Route::middleware(['permission:siap_jual'])->group(function () {
         Route::get('/pembelian/siap-jual', [PembelianController::class, 'barangSiapJual'])->name('pembelian.siap_jual');
-
-        // Tambahkan rute patch ini untuk update status massal di halaman siap jual
         Route::patch('/pembelian/siap-jual/update-status-massal', [PembelianController::class, 'updateStatusMassal'])->name('pembelian.siap_jual.updateStatusMassal');
     });
 
@@ -85,7 +82,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/pembelian/invoice/{id}', [PembelianController::class, 'showInvoice'])->name('invoice.show');
     });
 
-
     // ==========================================
     // 4. HISTORI PENJUALAN & ARSIP INVOICE (Permission: histori_penjualan)
     // ==========================================
@@ -94,7 +90,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/penjualan/update-histori-item/{invoiceId}', [PenjualanController::class, 'updateHistoriItem'])->name('penjualan.update-histori-item');
     });
 
-
     // ==========================================
     // 5. HISTORI REKAP PEMBELIAN (Permission: histori_rekap)
     // ==========================================
@@ -102,7 +97,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/pembelian/histori-rekap', [PembelianController::class, 'historiRekap'])->name('pembelian.histori_rekap');
         Route::patch('/pembelian/{id}/restore-status', [PembelianController::class, 'restoreStatus'])->name('pembelian.restoreStatus');
     });
-
 
     // ==========================================
     // 6. MANAJEMEN PENGGUNA / ADMIN (Permission: user_management)
@@ -116,13 +110,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('user.destroy');
     });
 
-    //KEUANGAN
-    // Keuangan & Kalkulasi Aset
+    // ==========================================
+    // KEUANGAN & KALKULASI ASET
+    // ==========================================
     Route::get('/keuangan', [KeuanganController::class, 'index'])->name('keuangan.index');
     Route::post('/keuangan', [KeuanganController::class, 'storeOrUpdate'])->name('keuangan.store');
 
     // ==========================================
-    // MASTER DATA
+    // MASTER DATA (Permission: master_data)
     // ==========================================
     Route::middleware(['permission:master_data'])->group(function () {
         // Master Data Barang

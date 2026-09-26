@@ -55,7 +55,7 @@
         </form>
 
         @php
-        // Menghitung jumlah total data berdasarkan masing-masing status (mengabaikan status 'Jual' & 'Selesai' untuk rekap utama)
+        // Menghitung jumlah total data berdasarkan masing-masing status
         $baseCountQuery = \App\Models\Pembelian::whereNotIn('status', ['Jual', 'Selesai']);
         if(!empty($search)) {
         $baseCountQuery->where(function ($q) use ($search) {
@@ -215,7 +215,6 @@
                                     $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
                                     $fileUrl = asset('storage/' . $filePath);
                                     @endphp
-                                    <!-- Tombol untuk memicu modal preview interaktif di halaman yang sama -->
                                     <button type="button"
                                         class="btn btn-xs btn-outline-info p-1 px-2 text-decoration-none preview-btn"
                                         style="font-size: 0.75rem;"
@@ -380,14 +379,14 @@
                                                 <div class="col-12">
                                                     <label class="form-label fw-semibold">Lampiran Ter-upload (Centang untuk menghapus saat update):</label>
                                                     <div class="d-flex flex-wrap gap-2">
-                                                        @foreach($item->file_lampiran as $idx =>$filePath)
+                                                        @foreach($item->file_lampiran as $idx => $filePath)
                                                         <div class="border rounded p-2 bg-light d-flex flex-column align-items-start gap-1" style="min-width: 120px;">
                                                             <span class="small fw-semibold text-truncate w-100 text-muted">
                                                                 <i class="bi bi-paperclip"></i> File {{ $idx + 1 }}
                                                             </span>
                                                             <div class="form-check form-check-inline m-0 pt-1 border-top w-100">
-                                                                <input class="form-check-input bg-danger border-danger" type="checkbox" name="delete_files[]" value="{{ $idx }}" id="delFile{{ $item->id }}_{{$idx }}">
-                                                                <label class="form-check-label small text-danger fw-semibold" for="delFile{{ $item->id }}_{{$idx }}" style="font-size: 0.75rem;">
+                                                                <input class="form-check-input bg-danger border-danger" type="checkbox" name="delete_files[]" value="{{ $idx }}" id="delFile{{ $item->id }}_{{ $idx }}">
+                                                                <label class="form-check-label small text-danger fw-semibold" for="delFile{{ $item->id }}_{{ $idx }}" style="font-size: 0.75rem;">
                                                                     Hapus File
                                                                 </label>
                                                             </div>
@@ -492,7 +491,7 @@
 
                     @php
                     $groupedByToko = $pembelians->groupBy(function($item) {
-                    return strtolower($item->via) === 'cod' ? 'COD' : ($item->nama_toko ?: 'Lainnya');
+                    return strtolower($item->via ?? '') === 'cod' ? 'COD' : ($item->nama_toko ?: 'Lainnya');
                     });
                     @endphp
 
@@ -610,7 +609,6 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-        // Inisialisasi Panzoom untuk Preview Gambar (Zoom & Drag)
         const previewImage = document.getElementById('previewImageElement');
         if (previewImage) {
             panzoomInstance = Panzoom(previewImage, {
@@ -621,10 +619,8 @@
                 cursor: 'grab'
             });
 
-            // Mendukung scroll mouse untuk zoom
             previewImage.parentElement.addEventListener('wheel', panzoomInstance.zoomWithWheel);
 
-            // Kontrol tombol Zoom
             document.getElementById('btnZoomIn').addEventListener('click', () => panzoomInstance.zoomIn());
             document.getElementById('btnZoomOut').addEventListener('click', () => panzoomInstance.zoomOut());
             document.getElementById('btnResetZoom').addEventListener('click', () => {
@@ -632,7 +628,6 @@
             });
         }
 
-        // Event listener saat tombol File / Lampiran diklik
         document.querySelectorAll('.preview-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 const url = this.getAttribute('data-url');
@@ -664,13 +659,11 @@
                     }
                 }
 
-                // Tampilkan Modal Preview Bootstrap
                 const previewModal = new bootstrap.Modal(document.getElementById('modalFilePreview'));
                 previewModal.show();
             });
         });
 
-        // Reset iframe PDF ketika modal ditutup agar bersih
         const modalFilePreview = document.getElementById('modalFilePreview');
         if (modalFilePreview) {
             modalFilePreview.addEventListener('hidden.bs.modal', function() {
@@ -679,7 +672,6 @@
             });
         }
 
-        // Skrip Checkbox Massal Tabel Utama
         const selectAllCheckbox = document.getElementById('selectAll');
         const itemCheckboxes = document.querySelectorAll('.item-checkbox');
         const bulkActionBar = document.getElementById('bulkActionBar');
@@ -713,12 +705,12 @@
             });
         });
 
-        // Skrip Teks Ringkasan untuk Disalin ke Clipboard
         const ringkasanCheckboxes = document.querySelectorAll('.ringkasan-checkbox');
         const textRingkasanSalin = document.getElementById('textRingkasanSalin');
 
         function updateRingkasanText() {
             let container = document.getElementById('containerRingkasanChecklist');
+            if (!container) return;
             let outputText = "";
 
             let currentToko = "";
@@ -733,7 +725,7 @@
                     outputText += mark + " " + labelText + "\n";
                 }
             });
-            textRingkasanSalin.value = outputText.trim();
+            if (textRingkasanSalin) textRingkasanSalin.value = outputText.trim();
         }
 
         updateRingkasanText();
@@ -793,15 +785,17 @@
                 const selectElement = e.target;
                 const targetInput = document.querySelector(selectElement.dataset.target);
 
-                if (selectElement.value === 'Lainnya') {
-                    targetInput.classList.remove('d-none');
-                    targetInput.value = '';
-                    targetInput.focus();
-                    targetInput.required = true;
-                } else {
-                    targetInput.classList.add('d-none');
-                    targetInput.value = selectElement.value;
-                    targetInput.required = false;
+                if (targetInput) {
+                    if (selectElement.value === 'Lainnya') {
+                        targetInput.classList.remove('d-none');
+                        targetInput.value = '';
+                        targetInput.focus();
+                        targetInput.required = true;
+                    } else {
+                        targetInput.classList.add('d-none');
+                        targetInput.value = selectElement.value;
+                        targetInput.required = false;
+                    }
                 }
             }
         });
