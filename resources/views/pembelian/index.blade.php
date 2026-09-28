@@ -501,24 +501,41 @@
             </div>
             <div class="modal-body">
                 @php
-                // Kelompokkan data berdasarkan Toko (COD / Nama Toko)
+                // 1. Kelompokkan data berdasarkan Toko (COD / Nama Toko)
                 $groupedTokoForRekap = $pembelians->groupBy(function($item) {
                 return strtolower($item->via ?? '') === 'cod' ? 'COD' : ($item->nama_toko ?: 'Lainnya');
                 });
 
-                // Generate Teks Murni Bersih Langsung via Blade Laravel
+                // Variable untuk menampung teks murni rincian
                 $plainTextRekapBarang = "";
+                $totalUnitPerBarangGlobal = []; // Array untuk menampung akumulasi TOTAL UNIT per jenis barang
+
                 foreach($groupedTokoForRekap as $tokoName => $itemsInToko) {
                 $plainTextRekapBarang .= $tokoName . "\n";
+
+                // Rekap jumlah barang per Toko
                 $rekapBarang = $itemsInToko->groupBy(function($item) {
                 return trim($item->nama_device ?: $item->nama_barang);
                 })->map->count();
 
                 foreach($rekapBarang as $namaBarang => $totalUnit) {
                 $plainTextRekapBarang .= "• " . $namaBarang . " : " . $totalUnit . " Unit\n";
+
+                // Akumulasi total unit per barang secara keseluruhan
+                if (!isset($totalUnitPerBarangGlobal[$namaBarang])) {
+                $totalUnitPerBarangGlobal[$namaBarang] = 0;
+                }
+                $totalUnitPerBarangGlobal[$namaBarang] += $totalUnit;
                 }
                 $plainTextRekapBarang .= "\n";
                 }
+
+                // 2. Tambahkan Section TOTAL UNIT Keseluruhan di bagian paling bawah
+                $plainTextRekapBarang .= "TOTAL UNIT\n";
+                foreach($totalUnitPerBarangGlobal as $namaBarang => $totalAkumulasi) {
+                $plainTextRekapBarang .= "• " . $namaBarang . " : " . $totalAkumulasi . " Unit\n";
+                }
+
                 $plainTextRekapBarang = trim($plainTextRekapBarang);
                 @endphp
 
@@ -528,7 +545,7 @@
                 </div>
 
                 <!-- Textarea Teks Murni Interaktif sebagai Kotak Utama Tampilan -->
-                <textarea id="textRekapArea" class="form-control font-monospace border bg-light" rows="12" style="font-size: 0.85rem;" readonly>{{ $plainTextRekapBarang }}</textarea>
+                <textarea id="textRekapArea" class="form-control font-monospace border bg-light" rows="14" style="font-size: 0.85rem; line-height: 1.6;" readonly>{{ $plainTextRekapBarang }}</textarea>
             </div>
             <div class="modal-footer justify-content-between">
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button>
