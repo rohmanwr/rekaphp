@@ -9,6 +9,7 @@ use App\Models\Device;
 use App\Models\Invoice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
 
 class PenjualanController extends Controller
 {
@@ -43,6 +44,7 @@ class PenjualanController extends Controller
 
         return view('penjualan.siap_jual', compact('pembelians', 'search', 'barangs', 'tokos', 'devices'));
     }
+
     /**
      * Menampilkan menu Histori Penjualan dengan Mutlak Lock Harga Invoice (Tanpa Mengubah Master)
      */
@@ -249,6 +251,31 @@ class PenjualanController extends Controller
         $pembelian->delete();
 
         return redirect()->back()->with('success', 'Data Detail Barang berhasil dihapus!');
+    }
+
+    /**
+     * Update status payment invoice
+     */
+    public function updatePaymentStatus(Request $request, $id)
+    {
+        $request->validate([
+            'status_payment' => 'required|in:belum,sudah',
+        ]);
+
+        $invoice = Invoice::findOrFail($id);
+
+        // Jika diubah menjadi "sudah", catat tanggal hari ini sebagai tanggal payment
+        if ($request->status_payment === 'sudah') {
+            $invoice->status_payment = 'sudah';
+            $invoice->tanggal_payment = Carbon::now()->format('Y-m-d');
+        } else {
+            $invoice->status_payment = 'belum';
+            $invoice->tanggal_payment = null;
+        }
+
+        $invoice->save();
+
+        return redirect()->back()->with('success', 'Status payment invoice ' . $invoice->referensi . ' berhasil diperbarui!');
     }
 
     /**

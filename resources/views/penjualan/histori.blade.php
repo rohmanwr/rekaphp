@@ -21,10 +21,11 @@
                 <thead class="table-light">
                     <tr>
                         <th class="text-center" style="width: 50px;">No</th>
-                        <th class="text-center" style="width: 60px;">Detail</th>
+                        <th class="text-center" style="width: 50px;">Detail</th>
                         <th>No. Invoice</th>
                         <th>Pelanggan</th>
                         <th>Tanggal Terbit</th>
+                        <th style="width: 150px;">Status Payment</th>
                         <th>Total Tagihan</th>
                         <th>Total Profit</th>
                         <th class="text-center" style="width: 120px;">Aksi</th>
@@ -32,7 +33,6 @@
                 </thead>
                 <tbody>
                     @php
-                    // Mengambil master data barang untuk referensi cadangan jika data invoice lama kosong
                     $masterBarangs = \App\Models\Barang::all()->keyBy('nama_barang');
                     @endphp
 
@@ -59,7 +59,6 @@
                     foreach($sourceItems as $it) {
                     $namaBarangIt = $it['nama_barang'] ?? ($it['deskripsi'] ?? 'Barang');
 
-                    // Cek dan ambil harga jual dari berbagai variasi key di database
                     $hargaJualHistori = 0;
                     if (isset($it['harga_jual']) && is_numeric($it['harga_jual']) && $it['harga_jual'] > 0) {
                     $hargaJualHistori = (float) $it['harga_jual'];
@@ -70,12 +69,10 @@
                     } elseif (isset($it['jumlah']) && is_numeric($it['jumlah']) && $it['jumlah'] > 0) {
                     $hargaJualHistori = (float) $it['jumlah'];
                     } else {
-                    // Fallback terakhir jika data benar-benar kosong, ambil dari master barang saat ini
                     $masterBrg = $masterBarangs[$namaBarangIt] ?? null;
                     $hargaJualHistori = (float) ($masterBrg->harga_jual ?? ($masterBrg->harga ?? 0));
                     }
 
-                    // Cek IMEI / Serial
                     $imeis = [];
                     if (isset($it['imei_list']) && is_array($it['imei_list']) && count($it['imei_list']) > 0) {
                     $imeis = $it['imei_list'];
@@ -133,6 +130,8 @@
                     ];
                     }
                     }
+
+                    $statusPayment = strtolower($invoice->status_payment ?? 'belum');
                     @endphp
 
                     <tr>
@@ -150,11 +149,35 @@
                             @endif
                         </td>
                         <td>{{ \Carbon\Carbon::parse($invoice->tanggal)->format('d/m/Y') }}</td>
-                        <td class="fw-bold text-success">Rp {{ number_format($invoice->total ?? 0, 0, ',', '.') }}</td>
-                        <!-- Tambahan Kolom Total Profit Per Invoice -->
-                        <td class="fw-bold {{ $totalProfitInvoice >= 0 ? 'text-primary' : 'text-danger' }}">
-                            Rp {{ number_format($totalProfitInvoice, 0, ',', '.') }}
+
+                        <!-- DROPDOWN UPDATE STATUS PAYMENT -->
+                        <td>
+                            <form action="{{ route('penjualan.updatePaymentStatus', $invoice->id) }}" method="POST">
+                                @csrf
+                                @method('PATCH')
+                                <select name="status_payment" class="form-select form-select-sm rounded-pill fw-bold {{ $statusPayment === 'sudah' ? 'bg-success text-white' : 'bg-warning text-dark' }}" onchange="this.form.submit()">
+                                    <option value="belum" {{ $statusPayment === 'belum' ? 'selected' : '' }}>🔴 Belum</option>
+                                    <option value="sudah" {{ $statusPayment === 'sudah' ? 'selected' : '' }}>🟢 Sudah</option>
+                                </select>
+                            </form>
+                            @if($statusPayment === 'sudah' && !empty($invoice->tanggal_payment))
+                            <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">
+                                Paid: {{ \Carbon\Carbon::parse($invoice->tanggal_payment)->format('d/m/Y') }}
+                            </small>
+                            @endif
                         </td>
+
+                        <td class="fw-bold text-success">Rp {{ number_format($invoice->total ?? 0, 0, ',', '.') }}</td>
+
+                        <!-- TOTAL PROFIT (Hanya bernilai jika status payment 'sudah') -->
+                        <td class="fw-bold {{ $statusPayment === 'sudah' ? ($totalProfitInvoice >= 0 ? 'text-primary' : 'text-danger') : 'text-muted' }}">
+                            @if($statusPayment === 'sudah')
+                            Rp {{ number_format($totalProfitInvoice, 0, ',', '.') }}
+                            @else
+                            <span class="badge bg-secondary">Rp 0 (Pending)</span>
+                            @endif
+                        </td>
+
                         <td class="text-center">
                             <a href="{{ route('invoice.show', $invoice->id) }}" class="btn btn-sm btn-primary">
                                 <i class="bi bi-file-earmark-text"></i> Invoice
@@ -162,15 +185,18 @@
                         </td>
                     </tr>
 
-                    <!-- Baris Rincian Lengkap (Dropdown) -->
+                    <!-- Baris Rincian Lengkap (Dropdown Collapse) -->
                     <tr class="bg-light">
-                        <td colspan="8" class="p-0 border-0">
+                        <td colspan="9" class="p-0 border-0">
                             <div class="collapse p-3" id="collapseInvoice{{ $invoice->id }}">
                                 <div class="card card-body border bg-white shadow-sm mb-2">
                                     <div class="d-flex justify-content-between align-items-center mb-3">
                                         <h6 class="fw-bold text-secondary mb-0"><i class="bi bi-box-seam me-1"></i> Rincian Barang Terjual Per Unit (Invoice: {{ $invoice->referensi }})</h6>
                                         <span class="badge bg-light text-dark border fw-bold fs-6">
-                                            Total Profit Invoice: <span class="{{ $totalProfitInvoice >= 0 ? 'text-primary' : 'text-danger' }}">Rp {{ number_format($totalProfitInvoice, 0, ',', '.') }}</span>
+                                            Total Profit Realized:
+                                            <span class="{{ $statusPayment === 'sudah' ? 'text-primary' : 'text-muted' }}">
+                                                Rp {{ number_format($statusPayment === 'sudah' ? $totalProfitInvoice : 0, 0, ',', '.') }}
+                                            </span>
                                         </span>
                                     </div>
 
@@ -223,13 +249,10 @@
                                                         <span class="badge {{ $badgeColor }}">{{ $viaVal }}</span>
                                                     </td>
                                                     <td>{{ isset($pItem['tanggal_beli']) ? \Carbon\Carbon::parse($pItem['tanggal_beli'])->format('d/m/Y') : '-' }}</td>
-                                                    <!-- Total Modal -->
                                                     <td class="fw-bold text-secondary">Rp {{ number_format($pItem['total_modal'], 0, ',', '.') }}</td>
-                                                    <!-- Harga Jual -->
                                                     <td class="fw-bold text-success">Rp {{ number_format($pItem['harga_jual'], 0, ',', '.') }}</td>
-                                                    <!-- Total Profit -->
-                                                    <td class="fw-bold {{ $pItem['total_profit'] >= 0 ? 'text-primary' : 'text-danger' }}">
-                                                        Rp {{ number_format($pItem['total_profit'], 0, ',', '.') }}
+                                                    <td class="fw-bold {{ $statusPayment === 'sudah' ? 'text-primary' : 'text-muted' }}">
+                                                        Rp {{ number_format($statusPayment === 'sudah' ? $pItem['total_profit'] : 0, 0, ',', '.') }}
                                                     </td>
                                                     <td>
                                                         @if(!empty($pItem['file_lampiran']) && is_array($pItem['file_lampiran']) && count($pItem['file_lampiran']) > 0)
@@ -261,7 +284,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="8" class="text-center py-4 text-muted">Belum ada histori penjualan.</td>
+                        <td colspan="9" class="text-center py-4 text-muted">Belum ada histori penjualan.</td>
                     </tr>
                     @endforelse
                 </tbody>

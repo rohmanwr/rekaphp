@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Keuangan;
 use App\Models\Invoice;
 use App\Models\Barang;
+use App\Models\Pembelian;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -24,9 +25,11 @@ class KeuanganController extends Controller
         $masterBarangs = Barang::all()->keyBy('nama_barang');
 
         // =========================================================================
-        // AMBIL INVOICE HANYA PADA TANGGAL YANG DIPILIH
+        // AMBIL INVOICE HANYA YANG BERSTATUS PAYMENT 'SUDAH' PADA TANGGAL PAYMENT TERSEBUT
         // =========================================================================
-        $invoices = Invoice::whereDate('tanggal', $tanggal)->get();
+        $invoices = Invoice::whereIn('status_payment', ['sudah', 'Sudah'])
+            ->whereDate('tanggal_payment', $tanggal)
+            ->get();
 
         $jumlahUnit = 0;
         $totalProfitNominal = 0;
@@ -100,21 +103,36 @@ class KeuanganController extends Controller
             }
         }
 
+        // =========================================================================
+        // AMBIL TOTAL ASET HANDPHONE (STATUS: "Sudah Diambil")
+        // =========================================================================
+        $asetHpItems = Pembelian::where('status', 'Sudah Diambil')->get();
+        $totalUnitAsetHp = $asetHpItems->count();
+        $totalModalAsetHp = (float) $asetHpItems->sum('total_modal');
+
         // Daftar Bank Dropdown
         $daftarBank = [
             'Bank Jago',
             'Bank BCA',
+            'Bank UOB',
             'Bank Mandiri',
-            'Bank BRI',
             'Bank BNI',
             'BSI',
-            'CIMB Niaga',
-            'Blu by BCA',
             'SeaBank',
+            'Blu by BCA',
             'GoPay / DANA / OVO'
         ];
 
-        return view('keuangan.index', compact('keuangan', 'tanggal', 'jumlahUnit', 'totalProfitNominal', 'daftarBank', 'riwayatKeuangan'));
+        return view('keuangan.index', compact(
+            'keuangan',
+            'tanggal',
+            'jumlahUnit',
+            'totalProfitNominal',
+            'totalUnitAsetHp',
+            'totalModalAsetHp',
+            'daftarBank',
+            'riwayatKeuangan'
+        ));
     }
 
     public function storeOrUpdate(Request $request)
@@ -153,9 +171,12 @@ class KeuanganController extends Controller
             }
         }
 
-        // Hitung ulang total profit KHUSUS pada tanggal input dari Invoice Penjualan
+        // Hitung ulang profit
         $masterBarangs = Barang::all()->keyBy('nama_barang');
-        $invoices = Invoice::whereDate('tanggal', $tanggal)->get();
+        $invoices = Invoice::whereIn('status_payment', ['sudah', 'Sudah'])
+            ->whereDate('tanggal_payment', $tanggal)
+            ->get();
+
         $totalProfitNominal = 0;
 
         foreach ($invoices as $inv) {
@@ -221,7 +242,18 @@ class KeuanganController extends Controller
             }
         }
 
-        $totalBersihAset = $totalProfitNominal + $totalTempatAset - $totalHutang;
+        // =========================================================================
+        // CEK APAKAH USER MENGKLIK TOMBOL DELETE ASET HP SEBELUM MENYIMPAN
+        // =========================================================================
+        $isAsetHpDeleted = $request->input('is_aset_hp_deleted', '0');
+        if ($isAsetHpDeleted == '1' || $isAsetHpDeleted === 1) {
+            $totalModalAsetHp = 0;
+        } else {
+            $totalModalAsetHp = (float) Pembelian::where('status', 'Sudah Diambil')->sum('total_modal');
+        }
+
+        // Hitung total bersih aset secara konsisten
+        $totalBersihAset = $totalProfitNominal + $totalTempatAset + $totalModalAsetHp - $totalHutang;
 
         Keuangan::updateOrCreate(
             ['tanggal_input' => $tanggal],

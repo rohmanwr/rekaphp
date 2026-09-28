@@ -25,12 +25,38 @@
 <form action="{{ route('keuangan.store') }}" method="POST">
     @csrf
     <input type="hidden" name="tanggal_input" value="{{ $tanggal }}">
+    <!-- Flag / Penanda jika Aset HP Dihapus oleh User -->
+    <input type="hidden" id="isAsetHpDeletedInput" name="is_aset_hp_deleted" value="0">
 
     <div class="row g-4 mb-5">
-        <!-- Kolom Kiri: Input Form Tempat Aset & Hutang -->
+        <!-- Kolom Kiri: Input Form Aset & Hutang -->
         <div class="col-lg-7">
 
-            <!-- 1. Tempat Aset (Dropdown Bank) -->
+            <!-- 1. Aset Handphone (Stok 'Sudah Diambil' dari Rekap Pembelian) -->
+            <div class="card border-0 shadow-sm mb-4 bg-light border-start border-4 border-info position-relative" id="cardAsetHp">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0 text-info"><i class="bi bi-phone me-2"></i> Aset Handphone (Status: Sudah Diambil)</h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-info text-dark fw-semibold px-3 py-2 fs-6" id="badgeUnitAsetHp">{{ $totalUnitAsetHp ?? 0 }} Unit Ready</span>
+                        <button type="button" class="btn btn-outline-danger btn-sm" id="btnDeleteAsetHp" title="Hapus Aset HP (Ubah Nilai Jadi 0)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted small d-block">Total Nilai Modal HP Ready:</span>
+                            <small class="text-muted" style="font-size: 0.75rem;">Diambil otomatis dari Rekap Pembelian status "Sudah Diambil"</small>
+                        </div>
+                        <div class="fw-bold text-info fs-4" id="displayModalAsetHp">
+                            Rp {{ number_format($totalModalAsetHp ?? 0, 0, ',', '.') }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Tempat Aset (Dropdown Bank / Dompet Digital) -->
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h5 class="fw-bold mb-0 text-primary"><i class="bi bi-wallet2 me-2"></i> Tempat Aset (Bank / Dompet)</h5>
@@ -63,14 +89,14 @@
                             </div>
                         </div>
                         <div class="col-md-1 text-center">
-                            <button type="button" class="btn btn-outline-danger btn-sm remove-row" title="Hapus"><i class="bi bi-trash"></i></button>
+                            <button type="button" class="btn btn-outline-danger btn-sm remove-row" title="Hapus Baris Ini"><i class="bi bi-trash"></i></button>
                         </div>
                 </div>
                 @endfor
             </div>
         </div>
 
-        <!-- 2. Hutang -->
+        <!-- 3. Daftar Hutang -->
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                 <h5 class="fw-bold mb-0 text-danger"><i class="bi bi-credit-card-2-front me-2"></i> Daftar Hutang (Bulanan / Jangka Panjang)</h5>
@@ -96,7 +122,7 @@
                         </div>
                     </div>
                     <div class="col-md-1 text-center">
-                        <button type="button" class="btn btn-outline-danger btn-sm remove-row" title="Hapus"><i class="bi bi-trash"></i></button>
+                        <button type="button" class="btn btn-outline-danger btn-sm remove-row" title="Hapus Baris Ini"><i class="bi bi-trash"></i></button>
                     </div>
             </div>
             @endfor
@@ -112,7 +138,7 @@
                     </div>
                 </div>
                 <div class="col-md-1 text-center">
-                    <button type="button" class="btn btn-outline-danger btn-sm remove-row" title="Hapus"><i class="bi bi-trash"></i></button>
+                    <button type="button" class="btn btn-outline-danger btn-sm remove-row" title="Hapus Baris Ini"><i class="bi bi-trash"></i></button>
                 </div>
             </div>
             @endif
@@ -135,29 +161,38 @@
             <div class="card-body">
                 <!-- Total Profit Dari Histori Penjualan -->
                 <div class="mb-3 pb-3 border-bottom">
-                    <span class="text-muted small d-block">TOTAL PROFIT (Dari Histori Penjualan)</span>
+                    <span class="text-muted small d-block fw-semibold">TOTAL PROFIT (Dari Histori Penjualan)</span>
                     <div class="d-flex justify-content-between align-items-center mt-1">
                         <span class="fw-semibold text-secondary">{{ $jumlahUnit ?? 0 }} Unit Terjual</span>
                         <span class="fw-bold text-success fs-5">Rp {{ number_format($totalProfitNominal ?? 0, 0, ',', '.') }}</span>
                     </div>
                 </div>
 
+                <!-- Total Aset HP (Status: Sudah Diambil) -->
+                <div class="mb-3 pb-3 border-bottom">
+                    <span class="text-muted small d-block fw-semibold"><i class="bi bi-phone me-1"></i> ASET HANDPHONE (Status: Sudah Diambil)</span>
+                    <div class="d-flex justify-content-between align-items-center mt-1">
+                        <span class="fw-semibold text-secondary" id="summaryUnitAsetHp">{{ $totalUnitAsetHp ?? 0 }} Unit Total</span>
+                        <span class="fw-bold text-info fs-5" id="summaryModalAsetHp">Rp {{ number_format($totalModalAsetHp ?? 0, 0, ',', '.') }}</span>
+                    </div>
+                </div>
+
                 <!-- Total Tempat Aset -->
                 <div class="mb-3 pb-3 border-bottom">
-                    <span class="text-muted small d-block">TOTAL TEMPAT ASET (Bank)</span>
+                    <span class="text-muted small d-block fw-semibold">TOTAL TEMPAT ASET (Bank)</span>
                     <span class="fw-bold text-primary fs-5" id="summaryTotalAset">Rp 0</span>
                 </div>
 
                 <!-- Total Hutang -->
                 <div class="mb-3 pb-3 border-bottom">
-                    <span class="text-muted small d-block">TOTAL HUTANG</span>
+                    <span class="text-muted small d-block fw-semibold">TOTAL HUTANG</span>
                     <span class="fw-bold text-danger fs-5" id="summaryTotalHutang">Rp 0</span>
                 </div>
 
                 <!-- Rumus Total Bersih Aset -->
                 <div class="bg-light p-3 rounded border">
                     <span class="text-dark small fw-bold d-block mb-1">TOTAL BERSIH ASET:</span>
-                    <small class="text-muted d-block mb-2" style="font-size: 0.75rem;">(Total Profit + Total Tempat Aset - Total Hutang)</small>
+                    <small class="text-muted d-block mb-2" style="font-size: 0.72rem;">(Profit + Modal Aset HP + Bank - Hutang)</small>
                     <div class="fw-bold text-dark fs-3" id="summaryTotalBersih">Rp 0</div>
                 </div>
             </div>
@@ -195,7 +230,7 @@
                         </td>
                         <td>
                             @if(!empty($row->tempat_aset) && is_array($row->tempat_aset))
-                            @foreach($row->tempat_aset as $bankName => $nomVal)
+                            @foreach($row->tempat_aset as $bankName =>$nomVal)
                             <span class="badge bg-light text-dark border me-1 mb-1">{{ $bankName }}: Rp {{ number_format($nomVal, 0, ',', '.') }}</span>
                             @endforeach
                             @else
@@ -204,7 +239,7 @@
                         </td>
                         <td>
                             @if(!empty($row->hutang) && is_array($row->hutang))
-                            @foreach($row->hutang as $pemberiName => $nomHVal)
+                            @foreach($row->hutang as $pemberiName =>$nomHVal)
                             <span class="badge bg-light text-danger border me-1 mb-1">{{ $pemberiName }}: Rp {{ number_format($nomHVal, 0, ',', '.') }}</span>
                             @endforeach
                             @else
@@ -240,13 +275,39 @@ for($bIdx = 0; $bIdx < count($daftarBank);$bIdx++) {
     }
     }
     $profitVal=(float)($totalProfitNominal ?? 0);
+    $modalAsetHpVal=(float)($totalModalAsetHp ?? 0);
     @endphp
 
     <script>
     const listBankOptions = `{!! $optionsHtml !!}`;
     const profitHariIni = {{ $profitVal }};
+    let currentModalAsetHp = {{ $modalAsetHpVal }};
 
     document.addEventListener('DOMContentLoaded', function() {
+    // Handler Tombol Delete Aset HP
+    const btnDeleteAsetHp = document.getElementById('btnDeleteAsetHp');
+    if (btnDeleteAsetHp) {
+    btnDeleteAsetHp.addEventListener('click', function() {
+    if (confirm('Apakah Anda yakin ingin menghapus nilai Aset HP pada kalkulasi ini? Nilainya akan diubah menjadi Rp 0.')) {
+    currentModalAsetHp = 0;
+    document.getElementById('isAsetHpDeletedInput').value = "1";
+
+    // Update UI Tampilan
+    document.getElementById('displayModalAsetHp').textContent = 'Rp 0';
+    document.getElementById('summaryModalAsetHp').textContent = 'Rp 0';
+    document.getElementById('badgeUnitAsetHp').textContent = '0 Unit Ready';
+    document.getElementById('summaryUnitAsetHp').textContent = '0 Unit Total';
+
+    // Nonaktifkan tombol delete
+    btnDeleteAsetHp.disabled = true;
+    btnDeleteAsetHp.classList.replace('btn-outline-danger', 'btn-secondary');
+
+    calculateSummary();
+    }
+    });
+    }
+
+    // Tombol Tambah Bank
     document.getElementById('tambahBankBtn').addEventListener('click', function() {
     const container = document.getElementById('bankContainer');
     const newRow = document.createElement('div');
@@ -265,12 +326,13 @@ for($bIdx = 0; $bIdx < count($daftarBank);$bIdx++) {
         </div>
     </div>
     <div class="col-md-1 text-center">
-        <button type="button" class="btn btn-outline-danger btn-sm remove-row"><i class="bi bi-trash"></i></button>
+        <button type="button" class="btn btn-outline-danger btn-sm remove-row" title="Hapus Baris Ini"><i class="bi bi-trash"></i></button>
     </div>
     `;
     container.appendChild(newRow);
     });
 
+    // Tombol Tambah Hutang
     document.getElementById('tambahHutangBtn').addEventListener('click', function() {
     const container = document.getElementById('hutangContainer');
     const newRow = document.createElement('div');
@@ -286,12 +348,13 @@ for($bIdx = 0; $bIdx < count($daftarBank);$bIdx++) {
         </div>
     </div>
     <div class="col-md-1 text-center">
-        <button type="button" class="btn btn-outline-danger btn-sm remove-row"><i class="bi bi-trash"></i></button>
+        <button type="button" class="btn btn-outline-danger btn-sm remove-row" title="Hapus Baris Ini"><i class="bi bi-trash"></i></button>
     </div>
     `;
     container.appendChild(newRow);
     });
 
+    // Event Listener Tombol Delete / Hapus Baris Bank atau Hutang
     document.addEventListener('click', function(e) {
     if (e.target.closest('.remove-row')) {
     const row = e.target.closest('.row');
@@ -330,7 +393,7 @@ for($bIdx = 0; $bIdx < count($daftarBank);$bIdx++) {
     totalHutang += parseRupiah(input.value);
     });
 
-    let totalBersih = profitHariIni + totalAset - totalHutang;
+    let totalBersih = profitHariIni + totalAset + currentModalAsetHp - totalHutang;
 
     document.getElementById('summaryTotalAset').textContent = 'Rp ' + new Intl.NumberFormat('id-ID').format(totalAset);
     document.getElementById('summaryTotalHutang').textContent = 'Rp ' + new Intl.NumberFormat('id-ID').format(totalHutang);
