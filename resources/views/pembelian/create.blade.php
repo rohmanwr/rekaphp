@@ -27,8 +27,8 @@
                     <label class="form-label fw-semibold">Nama Barang Pembelian <span class="text-danger">*</span></label>
                     <select id="master_nama_barang" class="form-select" required>
                         <option value="" selected disabled>-- Pilih Barang --</option>
-                        @foreach($barangs ?? [] as $b)
-                        <option value="{{ $b->nama_barang }}">{{ $b->nama_barang }}</option>
+                        @foreach ($barangs as $barang)
+                        <option value="{{ $barang->nama_barang }}">{{ $barang->nama_barang }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -37,8 +37,8 @@
                     <label class="form-label fw-semibold">Nama Toko Pembelian <span class="text-danger">*</span></label>
                     <select id="master_nama_toko" class="form-select" required>
                         <option value="" selected disabled>-- Pilih Toko --</option>
-                        @foreach($tokos ?? [] as $t)
-                        <option value="{{ $t->nama_toko }}">{{ $t->nama_toko }}</option>
+                        @foreach ($tokos as $toko)
+                        <option value="{{ $toko->nama_toko }}">{{ $toko->nama_toko }}</option>
                         @endforeach
                     </select>
                 </div>
