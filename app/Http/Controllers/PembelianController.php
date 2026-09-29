@@ -537,7 +537,7 @@ class PembelianController extends Controller
     }
 
     /**
-     * Menghapus Invoice dan mengembalikan status item pembelian terkait ke 'Sudah Ready'
+     * Menghapus Invoice dan menandai item pembelian terkait sebagai bermasalah.
      */
     public function destroyInvoice($id)
     {
@@ -558,9 +558,9 @@ class PembelianController extends Controller
             }
 
             if (!empty($pembelianIds)) {
-                // Reset status pembelian kembali ke 'Sudah Ready' & hapus referensi invoice
+                // Tandai item sebagai bermasalah dan hapus referensi invoice.
                 Pembelian::whereIn('id', array_unique($pembelianIds))->update([
-                    'status'         => 'Sudah Ready',
+                    'status'         => 'Bermasalah',
                     'no_invoice'     => null,
                     'tanggal_terbit' => null,
                 ]);
@@ -568,7 +568,7 @@ class PembelianController extends Controller
         } else {
             // Fallback jika tidak ada ID snapshot, hapus berdasarkan no_invoice
             Pembelian::where('no_invoice', $invoice->referensi)->update([
-                'status'         => 'Sudah Ready',
+                'status'         => 'Bermasalah',
                 'no_invoice'     => null,
                 'tanggal_terbit' => null,
             ]);
@@ -577,6 +577,6 @@ class PembelianController extends Controller
         // Hapus record invoice
         $invoice->delete();
 
-        return redirect()->back()->with('success', 'Data Invoice berhasil dihapus dan status barang dikembalikan ke Ready!');
+        return redirect()->back()->with('success', 'Data Invoice berhasil dihapus dan status barang diubah menjadi Bermasalah!');
     }
 }
