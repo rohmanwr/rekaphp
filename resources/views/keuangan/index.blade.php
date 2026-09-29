@@ -15,7 +15,7 @@
     </form>
 </div>
 
-@if(session('success'))
+@if (session('success'))
 <div class="alert alert-success alert-dismissible fade show" role="alert">
     {{ session('success') }}
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
@@ -25,14 +25,13 @@
 <form action="{{ route('keuangan.store') }}" method="POST">
     @csrf
     <input type="hidden" name="tanggal_input" value="{{ $tanggal }}">
-    <!-- Flag / Penanda jika Aset HP Dihapus oleh User -->
     <input type="hidden" id="isAsetHpDeletedInput" name="is_aset_hp_deleted" value="0">
 
     <div class="row g-4 mb-5">
         <!-- Kolom Kiri: Input Form Aset & Hutang -->
         <div class="col-lg-7">
 
-            <!-- 1. Aset Handphone (Stok 'Sudah Diambil' dari Rekap Pembelian) -->
+            <!-- 1. Aset Handphone -->
             <div class="card border-0 shadow-sm mb-4 bg-light border-start border-4 border-info position-relative" id="cardAsetHp">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h5 class="fw-bold mb-0 text-info"><i class="bi bi-phone me-2"></i> Aset Handphone (Status: Sudah Diambil)</h5>
@@ -56,7 +55,7 @@
                 </div>
             </div>
 
-            <!-- 2. Tempat Aset (Dropdown Bank / Dompet Digital) -->
+            <!-- 2. Tempat Aset (Dropdown & Input Manual "Lainnya") -->
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h5 class="fw-bold mb-0 text-primary"><i class="bi bi-wallet2 me-2"></i> Tempat Aset (Bank / Dompet)</h5>
@@ -67,20 +66,26 @@
                     $savedBanks = (isset($keuangan) && !empty($keuangan->tempat_aset)) ?$keuangan->tempat_aset : ['Bank Jago' => 0];
                     $bankKeys = array_keys($savedBanks);
                     $bankValues = array_values($savedBanks);
+                    $daftarPreset =$daftarBank ?? ['Bank Jago', 'Bank BCA', 'Bank UOB', 'Bank Mandiri', 'Bank BNI', 'BSI', 'SeaBank', 'Blu by BCA', 'GoPay / DANA / OVO'];
                     @endphp
 
-                    @for($i = 0; $i < count($bankKeys);$i++)
+                    @for ($i = 0; $i < count($bankKeys);$i++)
                         @php
-                        $bName=$bankKeys[$i];$bNom=$bankValues[$i];
+                        $bName=$bankKeys[$i];
+                        $bNom=$bankValues[$i];$isPreset=in_array($bName,$daftarPreset);
                         @endphp
                         <div class="row g-2 mb-3 bank-row align-items-center">
                         <div class="col-md-5">
-                            <select name="bank_nama[]" class="form-select" required>
+                            <select class="form-select bank-select" onchange="checkManualBank(this)" required>
                                 <option value="" disabled>-- Pilih Bank --</option>
-                                @for($j = 0; $j < count($daftarBank);$j++)
-                                    <option value="{{ $daftarBank[$j] }}" {{ $bName == $daftarBank[$j] ? 'selected' : '' }}>{{ $daftarBank[$j] }}</option>
-                                    @endfor
+                                @foreach ($daftarPreset as $bankOption)
+                                <option value="{{ $bankOption }}" {{ $isPreset &&$bName == $bankOption ? 'selected' : '' }}>{{ $bankOption }}</option>
+                                @endforeach
+                                <option value="MANUAL" {{ !$isPreset ? 'selected' : '' }}>Lainnya (Ketik Manual)</option>
                             </select>
+
+                            <input type="text" class="form-control mt-2 bank-manual-input {{ $isPreset ? 'd-none' : '' }}"
+                                value="{{ $bName }}" placeholder="Ketik Manual..." {{ !$isPreset ? 'required' : '' }}>
                         </div>
                         <div class="col-md-6">
                             <div class="input-group">
@@ -109,8 +114,8 @@
                 $hValues = array_values($savedHutang);
                 @endphp
 
-                @if(count($hKeys) > 0)
-                @for($k = 0; $k < count($hKeys);$k++)
+                @if (count($hKeys) > 0)
+                @for ($k = 0; $k < count($hKeys);$k++)
                     <div class="row g-2 mb-3 hutang-row align-items-center">
                     <div class="col-md-5">
                         <input type="text" name="hutang_nama[]" class="form-control" value="{{ $hKeys[$k] }}" placeholder="Nama Pemberi (Contoh: Ibu)" required>
@@ -220,8 +225,8 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @if(isset($riwayatKeuangan) && count($riwayatKeuangan) > 0)
-                    @for($r = 0; $r < count($riwayatKeuangan);$r++)
+                    @if (isset($riwayatKeuangan) && count($riwayatKeuangan) > 0)
+                    @for ($r = 0; $r < count($riwayatKeuangan);$r++)
                         @php $row=$riwayatKeuangan[$r]; @endphp
                         <tr>
                         <td class="text-center fw-semibold text-muted">{{ $r + 1 }}</td>
@@ -229,8 +234,8 @@
                             {{ \Carbon\Carbon::parse($row->tanggal_input)->translatedFormat('d F Y') }}
                         </td>
                         <td>
-                            @if(!empty($row->tempat_aset) && is_array($row->tempat_aset))
-                            @foreach($row->tempat_aset as $bankName =>$nomVal)
+                            @if (!empty($row->tempat_aset) && is_array($row->tempat_aset))
+                            @foreach ($row->tempat_aset as $bankName => $nomVal)
                             <span class="badge bg-light text-dark border me-1 mb-1">{{ $bankName }}: Rp {{ number_format($nomVal, 0, ',', '.') }}</span>
                             @endforeach
                             @else
@@ -238,8 +243,8 @@
                             @endif
                         </td>
                         <td>
-                            @if(!empty($row->hutang) && is_array($row->hutang))
-                            @foreach($row->hutang as $pemberiName =>$nomHVal)
+                            @if (!empty($row->hutang) && is_array($row->hutang))
+                            @foreach ($row->hutang as $pemberiName => $nomHVal)
                             <span class="badge bg-light text-danger border me-1 mb-1">{{ $pemberiName }}: Rp {{ number_format($nomHVal, 0, ',', '.') }}</span>
                             @endforeach
                             @else
@@ -269,145 +274,183 @@
 
 @php
 $optionsHtml = '';
-if(!empty($daftarBank)) {
-for($bIdx = 0; $bIdx < count($daftarBank);$bIdx++) {
-    $bItem=$daftarBank[$bIdx];$optionsHtml .="<option value='{$bItem}'>{$bItem}</option>" ;
-    }
-    }
-    $profitVal=(float)($totalProfitNominal ?? 0);
-    $modalAsetHpVal=(float)($totalModalAsetHp ?? 0);
-    @endphp
+if (!empty($daftarBank)) {
+foreach ($daftarBank as $bItem) {$optionsHtml .= "<option value='" . addslashes($bItem) . "'>" . htmlspecialchars($bItem) . "</option>";
+}
+}
+$profitVal = (float)($totalProfitNominal ?? 0);
+$modalAsetHpVal = (float)($totalModalAsetHp ?? 0);
+@endphp
 
-    <script>
-    const listBankOptions = `{!! $optionsHtml !!}`;
-    const profitHariIni = {{ $profitVal }};
-    let currentModalAsetHp = {{ $modalAsetHpVal }};
+<div id="keuanganData"
+    data-bank-options='@json($optionsHtml)'
+    data-profit="{{ $profitVal }}"
+    data-modal-aset-hp="{{ $modalAsetHpVal }}"
+    hidden></div>
+
+<script>
+    const keuanganData = document.getElementById('keuanganData');
+    const listBankOptions = JSON.parse(keuanganData.dataset.bankOptions);
+    const profitHariIni = Number(keuanganData.dataset.profit);
+    let currentModalAsetHp = Number(keuanganData.dataset.modalAsetHp);
+
+    // Fungsi Kontrol Dropdown & Input Manual
+    function checkManualBank(selectElem) {
+        const parentCol = selectElem.closest('.col-md-5');
+        const manualInput = parentCol.querySelector('.bank-manual-input');
+
+        if (selectElem.value === 'MANUAL') {
+            manualInput.classList.remove('d-none');
+            manualInput.setAttribute('required', 'required');
+            manualInput.setAttribute('name', 'bank_nama[]');
+            selectElem.removeAttribute('name');
+            manualInput.focus();
+        } else {
+            manualInput.classList.add('d-none');
+            manualInput.removeAttribute('required');
+            manualInput.removeAttribute('name');
+            selectElem.setAttribute('name', 'bank_nama[]');
+        }
+    }
 
     document.addEventListener('DOMContentLoaded', function() {
-    // Handler Tombol Delete Aset HP
-    const btnDeleteAsetHp = document.getElementById('btnDeleteAsetHp');
-    if (btnDeleteAsetHp) {
-    btnDeleteAsetHp.addEventListener('click', function() {
-    if (confirm('Apakah Anda yakin ingin menghapus nilai Aset HP pada kalkulasi ini? Nilainya akan diubah menjadi Rp 0.')) {
-    currentModalAsetHp = 0;
-    document.getElementById('isAsetHpDeletedInput').value = "1";
+        // Inisialisasi awal nama attribute saat halaman dimuat
+        document.querySelectorAll('.bank-row').forEach(row => {
+            const select = row.querySelector('.bank-select');
+            const manualInput = row.querySelector('.bank-manual-input');
+            if (select && select.value === 'MANUAL') {
+                manualInput.setAttribute('name', 'bank_nama[]');
+                select.removeAttribute('name');
+            } else if (select) {
+                select.setAttribute('name', 'bank_nama[]');
+                manualInput.removeAttribute('name');
+            }
+        });
 
-    // Update UI Tampilan
-    document.getElementById('displayModalAsetHp').textContent = 'Rp 0';
-    document.getElementById('summaryModalAsetHp').textContent = 'Rp 0';
-    document.getElementById('badgeUnitAsetHp').textContent = '0 Unit Ready';
-    document.getElementById('summaryUnitAsetHp').textContent = '0 Unit Total';
+        // Handler Tombol Delete Aset HP
+        const btnDeleteAsetHp = document.getElementById('btnDeleteAsetHp');
+        if (btnDeleteAsetHp) {
+            btnDeleteAsetHp.addEventListener('click', function() {
+                if (confirm('Apakah Anda yakin ingin menghapus nilai Aset HP pada kalkulasi ini? Nilainya akan diubah menjadi Rp 0.')) {
+                    currentModalAsetHp = 0;
+                    document.getElementById('isAsetHpDeletedInput').value = "1";
 
-    // Nonaktifkan tombol delete
-    btnDeleteAsetHp.disabled = true;
-    btnDeleteAsetHp.classList.replace('btn-outline-danger', 'btn-secondary');
+                    document.getElementById('displayModalAsetHp').textContent = 'Rp 0';
+                    document.getElementById('summaryModalAsetHp').textContent = 'Rp 0';
+                    document.getElementById('badgeUnitAsetHp').textContent = '0 Unit Ready';
+                    document.getElementById('summaryUnitAsetHp').textContent = '0 Unit Total';
 
-    calculateSummary();
-    }
+                    btnDeleteAsetHp.disabled = true;
+                    btnDeleteAsetHp.classList.replace('btn-outline-danger', 'btn-secondary');
+
+                    calculateSummary();
+                }
+            });
+        }
+
+        // Tombol Tambah Bank
+        document.getElementById('tambahBankBtn').addEventListener('click', function() {
+            const container = document.getElementById('bankContainer');
+            const newRow = document.createElement('div');
+            newRow.className = 'row g-2 mb-3 bank-row align-items-center';
+            newRow.innerHTML = `
+            <div class="col-md-5">
+                <select name="bank_nama[]" class="form-select bank-select" onchange="checkManualBank(this)" required>
+                    <option value="" disabled selected>-- Pilih Bank --</option>
+                    ${listBankOptions}
+                    <option value="MANUAL">Lainnya (Ketik Manual)</option>
+                </select>
+                <input type="text" class="form-control mt-2 bank-manual-input d-none" placeholder="Ketik Manual...">
+            </div>
+            <div class="col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text">Rp</span>
+                    <input type="text" name="bank_nominal[]" class="form-control input-rupiah" placeholder="0" required autocomplete="off">
+                </div>
+            </div>
+            <div class="col-md-1 text-center">
+                <button type="button" class="btn btn-outline-danger btn-sm remove-row" title="Hapus Baris Ini"><i class="bi bi-trash"></i></button>
+            </div>
+            `;
+            container.appendChild(newRow);
+        });
+
+        // Tombol Tambah Hutang
+        document.getElementById('tambahHutangBtn').addEventListener('click', function() {
+            const container = document.getElementById('hutangContainer');
+            const newRow = document.createElement('div');
+            newRow.className = 'row g-2 mb-3 hutang-row align-items-center';
+            newRow.innerHTML = `
+            <div class="col-md-5">
+                <input type="text" name="hutang_nama[]" class="form-control" placeholder="Nama Pemberi">
+            </div>
+            <div class="col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text">Rp</span>
+                    <input type="text" name="hutang_nominal[]" class="form-control input-rupiah" placeholder="0" autocomplete="off">
+                </div>
+            </div>
+            <div class="col-md-1 text-center">
+                <button type="button" class="btn btn-outline-danger btn-sm remove-row" title="Hapus Baris Ini"><i class="bi bi-trash"></i></button>
+            </div>
+            `;
+            container.appendChild(newRow);
+        });
+
+        // Event Listener Hapus Baris
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.remove-row')) {
+                const row = e.target.closest('.row');
+                row.remove();
+                calculateSummary();
+            }
+        });
+
+        function formatRupiah(angka) {
+            let number_string = angka.replace(/[^,\d]/g, '').toString(),
+                split = number_string.split(','),
+                sisa = split[0].length % 3,
+                rupiah = split[0].substr(0, sisa),
+                ribuan = split[0].substr(sisa).match(/\d{3}/gi);
+
+            if (ribuan) {
+                let separator = sisa ? '.' : '';
+                rupiah += separator + ribuan.join('.');
+            }
+            return split[1] != undefined ? rupiah + ',' + split[1] : rupiah;
+        }
+
+        function parseRupiah(str) {
+            if (!str) return 0;
+            return parseFloat(str.replace(/\./g, '')) || 0;
+        }
+
+        function calculateSummary() {
+            let totalAset = 0;
+            document.querySelectorAll('input[name="bank_nominal[]"]').forEach(input => {
+                totalAset += parseRupiah(input.value);
+            });
+
+            let totalHutang = 0;
+            document.querySelectorAll('input[name="hutang_nominal[]"]').forEach(input => {
+                totalHutang += parseRupiah(input.value);
+            });
+
+            let totalBersih = profitHariIni + totalAset + currentModalAsetHp - totalHutang;
+
+            document.getElementById('summaryTotalAset').textContent = 'Rp ' + new Intl.NumberFormat('id-ID').format(totalAset);
+            document.getElementById('summaryTotalHutang').textContent = 'Rp ' + new Intl.NumberFormat('id-ID').format(totalHutang);
+            document.getElementById('summaryTotalBersih').textContent = 'Rp ' + new Intl.NumberFormat('id-ID').format(totalBersih);
+        }
+
+        document.addEventListener('keyup', function(e) {
+            if (e.target && e.target.classList.contains('input-rupiah')) {
+                e.target.value = formatRupiah(e.target.value);
+                calculateSummary();
+            }
+        });
+
+        calculateSummary();
     });
-    }
-
-    // Tombol Tambah Bank
-    document.getElementById('tambahBankBtn').addEventListener('click', function() {
-    const container = document.getElementById('bankContainer');
-    const newRow = document.createElement('div');
-    newRow.className = 'row g-2 mb-3 bank-row align-items-center';
-    newRow.innerHTML = `
-    <div class="col-md-5">
-        <select name="bank_nama[]" class="form-select" required>
-            <option value="" disabled selected>-- Pilih Bank --</option>
-            ${listBankOptions}
-        </select>
-    </div>
-    <div class="col-md-6">
-        <div class="input-group">
-            <span class="input-group-text">Rp</span>
-            <input type="text" name="bank_nominal[]" class="form-control input-rupiah" placeholder="0" required autocomplete="off">
-        </div>
-    </div>
-    <div class="col-md-1 text-center">
-        <button type="button" class="btn btn-outline-danger btn-sm remove-row" title="Hapus Baris Ini"><i class="bi bi-trash"></i></button>
-    </div>
-    `;
-    container.appendChild(newRow);
-    });
-
-    // Tombol Tambah Hutang
-    document.getElementById('tambahHutangBtn').addEventListener('click', function() {
-    const container = document.getElementById('hutangContainer');
-    const newRow = document.createElement('div');
-    newRow.className = 'row g-2 mb-3 hutang-row align-items-center';
-    newRow.innerHTML = `
-    <div class="col-md-5">
-        <input type="text" name="hutang_nama[]" class="form-control" placeholder="Nama Pemberi">
-    </div>
-    <div class="col-md-6">
-        <div class="input-group">
-            <span class="input-group-text">Rp</span>
-            <input type="text" name="hutang_nominal[]" class="form-control input-rupiah" placeholder="0" autocomplete="off">
-        </div>
-    </div>
-    <div class="col-md-1 text-center">
-        <button type="button" class="btn btn-outline-danger btn-sm remove-row" title="Hapus Baris Ini"><i class="bi bi-trash"></i></button>
-    </div>
-    `;
-    container.appendChild(newRow);
-    });
-
-    // Event Listener Tombol Delete / Hapus Baris Bank atau Hutang
-    document.addEventListener('click', function(e) {
-    if (e.target.closest('.remove-row')) {
-    const row = e.target.closest('.row');
-    row.remove();
-    calculateSummary();
-    }
-    });
-
-    function formatRupiah(angka) {
-    let number_string = angka.replace(/[^,\d]/g, '').toString(),
-    split = number_string.split(','),
-    sisa = split[0].length % 3,
-    rupiah = split[0].substr(0, sisa),
-    ribuan = split[0].substr(sisa).match(/\d{3}/gi);
-
-    if (ribuan) {
-    let separator = sisa ? '.' : '';
-    rupiah += separator + ribuan.join('.');
-    }
-    return split[1] != undefined ? rupiah + ',' + split[1] : rupiah;
-    }
-
-    function parseRupiah(str) {
-    if (!str) return 0;
-    return parseFloat(str.replace(/\./g, '')) || 0;
-    }
-
-    function calculateSummary() {
-    let totalAset = 0;
-    document.querySelectorAll('input[name="bank_nominal[]"]').forEach(input => {
-    totalAset += parseRupiah(input.value);
-    });
-
-    let totalHutang = 0;
-    document.querySelectorAll('input[name="hutang_nominal[]"]').forEach(input => {
-    totalHutang += parseRupiah(input.value);
-    });
-
-    let totalBersih = profitHariIni + totalAset + currentModalAsetHp - totalHutang;
-
-    document.getElementById('summaryTotalAset').textContent = 'Rp ' + new Intl.NumberFormat('id-ID').format(totalAset);
-    document.getElementById('summaryTotalHutang').textContent = 'Rp ' + new Intl.NumberFormat('id-ID').format(totalHutang);
-    document.getElementById('summaryTotalBersih').textContent = 'Rp ' + new Intl.NumberFormat('id-ID').format(totalBersih);
-    }
-
-    document.addEventListener('keyup', function(e) {
-    if (e.target && e.target.classList.contains('input-rupiah')) {
-    e.target.value = formatRupiah(e.target.value);
-    calculateSummary();
-    }
-    });
-
-    calculateSummary();
-    });
-    </script>
-    @endsection
+</script>
+@endsection
