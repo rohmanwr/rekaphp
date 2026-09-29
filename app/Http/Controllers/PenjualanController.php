@@ -87,7 +87,9 @@ class PenjualanController extends Controller
 
                 // Cari data asli ke tabel Pembelian untuk Total Modal
                 $pembelianRecord = null;
-                if (isset($it['pembelian_ids']) && is_array($it['pembelian_ids']) && count($it['pembelian_ids']) > 0) {
+                if (isset($it['pembelian_id'])) {
+                    $pembelianRecord = Pembelian::find($it['pembelian_id']);
+                } elseif (isset($it['pembelian_ids']) && is_array($it['pembelian_ids']) && count($it['pembelian_ids']) > 0) {
                     $pembelianRecord = Pembelian::whereIn('id', $it['pembelian_ids'])->first();
                 } else {
                     $pembelianRecord = Pembelian::where('nama_barang', 'like', "%{$namaBarang}%")
@@ -130,8 +132,10 @@ class PenjualanController extends Controller
                 }
 
                 $normalizedItems[] = [
+                    'pembelian_id'  => $it['pembelian_id'] ?? null,
                     'nama_barang'   => $namaBarang,
                     'nama_device'   => $it['nama_device'] ?? ($pembelianRecord->nama_device ?? null),
+                    'nama_alamat'   => $it['nama_alamat'] ?? ($pembelianRecord->nama_alamat ?? null),
                     'nama_toko'     => $tokoVal,
                     'via'           => $viaVal,
                     'detail_imei'   => $imeiVal,
@@ -144,7 +148,7 @@ class PenjualanController extends Controller
             }
 
             // Gunakan Query Builder langsung agar tidak menimpa status_payment di DB
-            if ($dataHasChanged && !empty($normalizedItems)) {
+            if (!$invoice->is_locked && $dataHasChanged && !empty($normalizedItems)) {
                 DB::table('invoices')
                     ->where('id', $invoice->id)
                     ->update(['pembelian_data' => json_encode($normalizedItems)]);
@@ -198,6 +202,11 @@ class PenjualanController extends Controller
         ]);
 
         $pembelian = Pembelian::findOrFail($id);
+
+        if (Invoice::isLockedForPurchase($pembelian)) {
+            return redirect()->back()->with('error', 'Data ini terkunci oleh invoice dan tidak dapat diubah.');
+        }
+
         $data = $request->except(['file_lampiran', 'delete_files']);
         $data['detail_imei'] = $request->input('detail_imei');
 
@@ -238,6 +247,10 @@ class PenjualanController extends Controller
     {
         $pembelian = Pembelian::findOrFail($id);
 
+        if (Invoice::isLockedForPurchase($pembelian)) {
+            return redirect()->back()->with('error', 'Data ini terkunci oleh invoice dan tidak dapat dihapus.');
+        }
+
         if (!empty($pembelian->file_lampiran) && is_array($pembelian->file_lampiran)) {
             foreach ($pembelian->file_lampiran as $filePath) {
                 if (Storage::disk('public')->exists($filePath)) {
@@ -252,13 +265,35 @@ class PenjualanController extends Controller
     }
 
     /**
-     * Update status payment invoice (Belum / Sudah)
+     * Mengunci invoice agar data dan statusnya tidak dapat diubah lagi.
      */
+    public function lockInvoice($id)
+    {
+        $invoice = Invoice::findOrFail($id);
+
+        if ($invoice->is_locked) {
+            return redirect()->back()->with('error', 'Invoice ini sudah terkunci.');
+        }
+
+        if (strtolower($invoice->status_payment ?? '') !== 'sudah') {
+            return redirect()->back()->with('error', 'Invoice hanya dapat dikunci setelah status payment menjadi Sudah.');
+        }
+
+        $invoice->update(['is_locked' => true]);
+
+        return redirect()->back()->with('success', 'Invoice berhasil dikunci dan tidak dapat diubah lagi.');
+    }
+
     public function updatePaymentStatus(Request $request, $id)
     {
         $request->validate([
             'status_payment' => 'required|in:belum,sudah',
         ]);
+
+        $invoice = Invoice::findOrFail($id);
+        if ($invoice->is_locked) {
+            return redirect()->back()->with('error', 'Invoice ini terkunci dan status pembayarannya tidak dapat diubah.');
+        }
 
         $statusInput = strtolower($request->status_payment);
         $tanggalPayment = ($statusInput === 'sudah') ? Carbon::now()->toDateString() : null;
@@ -291,6 +326,10 @@ class PenjualanController extends Controller
         ]);
 
         $invoice = Invoice::findOrFail($invoiceId);
+
+        if ($invoice->is_locked) {
+            return redirect()->back()->with('error', 'Invoice ini terkunci dan rinciannya tidak dapat diubah.');
+        }
 
         $isSnapshot = !empty($invoice->pembelian_data);
         $items = $isSnapshot ? $invoice->pembelian_data : ($invoice->items ?? []);

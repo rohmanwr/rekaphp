@@ -134,6 +134,7 @@
 <form id="formStatusSingle{{ $item->id }}" action="{{ route('pembelian.updateStatus', $item->id) }}" method="POST" class="d-none">
     @csrf
     @method('PATCH')
+    <input type="hidden" name="status" id="statusSingleValue{{ $item->id }}" value="{{ $item->status }}">
 </form>
 @endforeach
 
@@ -220,7 +221,7 @@
                             <td>{{ \Carbon\Carbon::parse($item->tanggal_beli)->format('d/m/Y') }}</td>
                             <td class="fw-bold">Rp {{ number_format($item->total_modal, 0, ',', '.') }}</td>
                             <td>
-                                <select name="status" form="formStatusSingle{{ $item->id }}" class="form-select form-select-sm rounded-pill fw-semibold" onchange="document.getElementById('formStatusSingle{{ $item->id }}').submit()" style="width: fit-content; min-width: 140px;">
+                                <select form="formStatusSingle{{ $item->id }}" class="form-select form-select-sm rounded-pill fw-semibold" onchange="document.getElementById('statusSingleValue{{ $item->id }}').value=this.value; document.getElementById('formStatusSingle{{ $item->id }}').submit()" style="width: fit-content; min-width: 140px;">
                                     <option value="Belum Ready" {{ $item->status == 'Belum Ready' ? 'selected' : '' }}>⏳ Belum Ready</option>
                                     <option value="Sudah Ready" {{ $item->status == 'Sudah Ready' ? 'selected' : '' }}>✅ Sudah Ready</option>
                                     <option value="Sudah Diambil" {{ $item->status == 'Sudah Diambil' ? 'selected' : '' }}>📦 Sudah Diambil</option>
@@ -355,7 +356,7 @@
 
                 <div class="d-flex align-items-center justify-content-between gap-2 pt-2 border-top mt-2">
                     <!-- Dropdown Quick Update Status Mobile -->
-                    <select name="status" form="formStatusSingle{{ $item->id }}" class="form-select form-select-sm rounded-pill fw-semibold w-auto" onchange="document.getElementById('formStatusSingle{{ $item->id }}').submit()">
+                    <select form="formStatusSingle{{ $item->id }}" class="form-select form-select-sm rounded-pill fw-semibold w-auto" onchange="document.getElementById('statusSingleValue{{ $item->id }}').value=this.value; document.getElementById('formStatusSingle{{ $item->id }}').submit()">
                         <option value="Belum Ready" {{ $item->status == 'Belum Ready' ? 'selected' : '' }}>⏳ Belum Ready</option>
                         <option value="Sudah Ready" {{ $item->status == 'Sudah Ready' ? 'selected' : '' }}>✅ Sudah Ready</option>
                         <option value="Sudah Diambil" {{ $item->status == 'Sudah Diambil' ? 'selected' : '' }}>📦 Sudah Diambil</option>
@@ -419,7 +420,7 @@
         <div class="modal-content text-start">
             <div class="modal-header">
                 <h5 class="modal-title fw-bold fs-6">Edit Rekap Pembelian ({{ $item->kode_otomatis }})</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="stopScanner({{ $item->id }})"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" data-scanner-action="stop" data-item-id="{{ $item->id }}"></button>
             </div>
             <form action="{{ route('pembelian.update', $item->id) }}" method="POST" enctype="multipart/form-data" class="form-pembelian">
                 @csrf
@@ -527,7 +528,7 @@
                             <label class="form-label fw-bold text-primary"><i class="bi bi-barcode me-1"></i> Nomor IMEI / Detail IMEI</label>
                             <div class="input-group">
                                 <input type="text" id="imeiInput{{ $item->id }}" name="detail_imei" class="form-control font-monospace" value="{{ old('detail_imei', $item->detail_imei) }}" placeholder="Ketik manual atau scan otomatis kamera...">
-                                <button type="button" class="btn btn-outline-primary fw-semibold" onclick="startScanner({{ $item->id }})">
+                                <button type="button" class="btn btn-outline-primary fw-semibold" data-scanner-action="start" data-item-id="{{ $item->id }}">
                                     <i class="bi bi-camera"></i> Scan
                                 </button>
                             </div>
@@ -537,7 +538,7 @@
                                     <i class="bi bi-info-circle"></i> Arahkan kamera ke barcode/QR Code IMEI pada dus HP.
                                 </div>
                                 <div id="reader{{ $item->id }}" class="border rounded overflow-hidden" style="width: 100%; max-width: 450px; margin: 0 auto; min-height: 220px; background-color: #000;"></div>
-                                <button type="button" class="btn btn-sm btn-secondary mt-2 px-3" onclick="stopScanner({{ $item->id }})">Tutup Kamera</button>
+                                <button type="button" class="btn btn-sm btn-secondary mt-2 px-3" data-scanner-action="stop" data-item-id="{{ $item->id }}">Tutup Kamera</button>
                             </div>
                         </div>
 
@@ -570,7 +571,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal" onclick="stopScanner({{ $item->id }})">Batal</button>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal" data-scanner-action="stop" data-item-id="{{ $item->id }}">Batal</button>
                     <button type="submit" class="btn btn-warning text-white fw-semibold">Update Pembelian</button>
                 </div>
             </form>
@@ -984,6 +985,18 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('click', function(event) {
+            const scannerButton = event.target.closest('[data-scanner-action]');
+            if (!scannerButton) return;
+
+            const scannerId = scannerButton.dataset.itemId;
+            if (scannerButton.dataset.scannerAction === 'start') {
+                startScanner(scannerId);
+            } else {
+                stopScanner(scannerId);
+            }
+        });
+
         // Panzoom Init
         const previewImage = document.getElementById('previewImageElement');
         if (previewImage) {

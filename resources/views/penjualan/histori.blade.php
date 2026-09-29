@@ -3,8 +3,192 @@
 @section('title', 'Histori Penjualan')
 
 @section('content')
+<style>
+    @media (max-width: 767.98px) {
+        .histori-invoice-scroll {
+            overflow: visible;
+        }
+
+        .histori-invoice-shell {
+            border: 0 !important;
+            background: transparent;
+            box-shadow: none !important;
+        }
+
+        .histori-invoice-table,
+        .histori-invoice-table tbody {
+            display: block;
+            width: 100%;
+        }
+
+        .histori-invoice-table thead {
+            display: none;
+        }
+
+        .histori-invoice-table tr.invoice-history-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            grid-template-areas:
+                "number invoice"
+                "customer customer"
+                "date payment"
+                "modal bill"
+                "profit profit"
+                "detail actions";
+            gap: 0;
+            margin: 0 0 14px;
+            padding: 0;
+            overflow: hidden;
+            border: 1px solid #dce2e6;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 3px 10px rgba(33, 37, 41, 0.07);
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td {
+            display: flex;
+            min-width: 0;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
+            padding: 11px 10px !important;
+            border: 0 !important;
+            border-right: 1px solid #dce2e6 !important;
+            border-bottom: 1px solid #dce2e6 !important;
+            overflow-wrap: anywhere;
+            text-align: left !important;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td::before {
+            content: attr(data-label);
+            color: #6c757d;
+            font-size: 0.7rem;
+            font-weight: 700;
+            line-height: 1.2;
+            text-transform: uppercase;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(1) {
+            grid-area: number;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(2) {
+            grid-area: detail;
+            align-items: flex-start;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(3) {
+            grid-area: invoice;
+            border-right: 0 !important;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(4) {
+            grid-area: customer;
+            border-right: 0 !important;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(5) {
+            grid-area: date;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(6) {
+            grid-area: payment;
+            border-right: 0 !important;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(7) {
+            grid-area: modal;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(8) {
+            grid-area: bill;
+            border-right: 0 !important;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(9) {
+            grid-area: profit;
+            border-right: 0 !important;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(10) {
+            grid-area: actions;
+            flex-direction: row;
+            align-items: center;
+            border-right: 0 !important;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(3) .fw-bold {
+            font-size: 1rem;
+            overflow-wrap: anywhere;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(4) .fw-semibold {
+            color: #212529;
+            font-size: 0.95rem;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(7),
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(8) {
+            padding: 12px 10px !important;
+            background: #f5f7f8;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(6) select {
+            width: 100%;
+            max-width: 100%;
+            padding-right: 1.8rem;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(7),
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(8),
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(9) {
+            white-space: nowrap;
+            font-size: 0.85rem;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(10)::before {
+            margin-right: auto;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(10) .d-flex {
+            justify-content: flex-end !important;
+            flex-wrap: wrap;
+        }
+
+        .histori-invoice-table tr.invoice-history-row>td:nth-child(10) .btn {
+            min-width: 40px;
+            min-height: 40px;
+        }
+
+        .histori-invoice-table tr.invoice-detail-row,
+        .histori-invoice-table tr.invoice-empty-row {
+            display: block;
+            width: 100%;
+        }
+
+        .histori-invoice-table tr.invoice-detail-row>td,
+        .histori-invoice-table tr.invoice-empty-row>td {
+            display: block;
+            width: 100%;
+        }
+
+        .histori-invoice-table tr.invoice-detail-row>td::before {
+            content: none;
+        }
+
+        .histori-invoice-table tr.invoice-detail-row .collapse {
+            padding: 10px !important;
+        }
+
+        .histori-page-title {
+            font-size: 1.2rem;
+            line-height: 1.3;
+        }
+    }
+</style>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h3 class="fw-bold text-dark mb-0">Histori Penjualan & Arsip Invoice</h3>
+    <h3 class="fw-bold text-dark mb-0 histori-page-title">Histori Penjualan & Arsip Invoice</h3>
 </div>
 
 @if(session('success'))
@@ -21,10 +205,10 @@
 </div>
 @endif
 
-<div class="card border-0 shadow-sm">
+<div class="card border-0 shadow-sm histori-invoice-shell">
     <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+        <div class="table-responsive histori-invoice-scroll">
+            <table class="table table-hover align-middle mb-0 histori-invoice-table">
                 <thead class="table-light">
                     <tr>
                         <th class="text-center" style="width: 50px;">No</th>
@@ -33,6 +217,7 @@
                         <th>Pelanggan</th>
                         <th>Tanggal Terbit</th>
                         <th style="width: 160px;">Status Payment</th>
+                        <th>Total Modal Keseluruhan</th>
                         <th>Total Tagihan</th>
                         <th>Total Profit</th>
                         <th class="text-center" style="width: 140px;">Aksi</th>
@@ -62,6 +247,7 @@
                     : (is_array($rawItems) ? $rawItems : []);
 
                     $totalProfitInvoice = 0;
+                    $totalModalInvoice = 0;
 
                     foreach($sourceItems as $it) {
                     $namaBarangIt = $it['nama_barang'] ?? ($it['deskripsi'] ?? 'Barang');
@@ -100,6 +286,7 @@
                     $modalIt = isset($it['total_modal']) ? (float) $it['total_modal'] : 0;
 
                     if (count($imeis) > 1) {
+                    $totalModalInvoice += $modalIt * count($imeis);
                     $hargaSatuanUnit = count($imeis) > 0 ? ($hargaJualHistori / count($imeis)) : $hargaJualHistori;
                     foreach ($imeis as $singleImei) {
                     $profitUnit = $hargaSatuanUnit - $modalIt;
@@ -108,6 +295,7 @@
                     $displayItems[] = [
                     'nama_barang' => $namaBarangIt,
                     'nama_device' => $it['nama_device'] ?? null,
+                    'nama_alamat' => $it['nama_alamat'] ?? null,
                     'nama_toko' => $it['nama_toko'] ?? ($it['toko'] ?? '-'),
                     'via' => $it['via'] ?? '-',
                     'detail_imei' => $singleImei,
@@ -119,6 +307,7 @@
                     ];
                     }
                     } else {
+                    $totalModalInvoice += $modalIt;
                     $singleImei = count($imeis) === 1 ? $imeis[0] : '-';
                     $profitIt = isset($it['total_profit']) ? (float) $it['total_profit'] : ($hargaJualHistori - $modalIt);
                     $totalProfitInvoice += $profitIt;
@@ -126,6 +315,7 @@
                     $displayItems[] = [
                     'nama_barang' => $namaBarangIt,
                     'nama_device' => $it['nama_device'] ?? null,
+                    'nama_alamat' => $it['nama_alamat'] ?? null,
                     'nama_toko' => $it['nama_toko'] ?? ($it['toko'] ?? '-'),
                     'via' => $it['via'] ?? '-',
                     'detail_imei' => $singleImei,
@@ -141,32 +331,38 @@
                     $statusPayment = strtolower($invoice->status_payment ?? 'belum');
                     @endphp
 
-                    <tr>
-                        <td class="text-center fw-semibold text-muted">{{ $loop->iteration }}</td>
-                        <td class="text-center">
-                            <button class="btn btn-sm btn-outline-secondary rounded-circle" type="button" data-bs-toggle="collapse" data-bs-target="#collapseInvoice{{ $invoice->id }}" title="Lihat Rincian Barang">
-                                <i class="bi bi-chevron-down"></i>
+                    <tr class="invoice-history-row">
+                        <td class="text-center fw-semibold text-muted" data-label="No">{{ $loop->iteration }}</td>
+                        <td class="text-center" data-label="Detail">
+                            <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseInvoice{{ $invoice->id }}" title="Lihat Rincian Barang" aria-label="Lihat rincian barang">
+                                <i class="bi bi-chevron-down me-1"></i>Rincian
                             </button>
                         </td>
-                        <td><span class="fw-bold text-primary">{{ $invoice->referensi }}</span></td>
-                        <td>
+                        <td data-label="No. Invoice"><span class="fw-bold text-primary">{{ $invoice->referensi }}</span></td>
+                        <td data-label="Pelanggan">
                             <span class="fw-semibold text-dark">{{ $invoice->nama_pelanggan }}</span>
                             @if(!empty($invoice->alamat_pelanggan))
                             <br><small class="text-muted">{{ $invoice->alamat_pelanggan }}</small>
                             @endif
                         </td>
-                        <td>{{ \Carbon\Carbon::parse($invoice->tanggal)->format('d/m/Y') }}</td>
+                        <td data-label="Tanggal Terbit">{{ \Carbon\Carbon::parse($invoice->tanggal)->format('d/m/Y') }}</td>
 
                         <!-- DROPDOWN UPDATE STATUS PAYMENT -->
-                        <td>
+                        <td data-label="Status Payment">
+                            @if($invoice->is_locked)
+                            <span class="badge {{ $statusPayment === 'sudah' ? 'bg-success' : 'bg-warning text-dark' }}">
+                                <i class="bi bi-lock-fill me-1"></i>{{ $statusPayment === 'sudah' ? 'Sudah' : 'Belum' }} - Terkunci
+                            </span>
+                            @else
                             <form id="formPayment{{ $invoice->id }}" action="{{ route('penjualan.updatePaymentStatus', $invoice->id) }}" method="POST">
                                 @csrf
                                 @method('PATCH')
                                 <select name="status_payment" class="form-select form-select-sm rounded-pill fw-bold {{ $statusPayment === 'sudah' ? 'bg-success text-white' : 'bg-warning text-dark' }}" onchange="document.getElementById('formPayment{{ $invoice->id }}').submit()">
-                                    <option value="belum" {{ $statusPayment === 'belum' ? 'selected' : '' }}>🔴 Belum</option>
-                                    <option value="sudah" {{ $statusPayment === 'sudah' ? 'selected' : '' }}>🟢 Sudah</option>
+                                    <option value="belum" {{ $statusPayment === 'belum' ? 'selected' : '' }}>Belum</option>
+                                    <option value="sudah" {{ $statusPayment === 'sudah' ? 'selected' : '' }}>Sudah</option>
                                 </select>
                             </form>
+                            @endif
                             @if($statusPayment === 'sudah' && !empty($invoice->tanggal_payment))
                             <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">
                                 Paid: {{ \Carbon\Carbon::parse($invoice->tanggal_payment)->format('d/m/Y') }}
@@ -174,10 +370,11 @@
                             @endif
                         </td>
 
-                        <td class="fw-bold text-success">Rp {{ number_format($invoice->total ?? 0, 0, ',', '.') }}</td>
+                        <td class="fw-bold text-secondary" data-label="Total Modal Keseluruhan">Rp {{ number_format($totalModalInvoice, 0, ',', '.') }}</td>
+                        <td class="fw-bold text-success" data-label="Total Tagihan">Rp {{ number_format($invoice->total ?? 0, 0, ',', '.') }}</td>
 
                         <!-- TOTAL PROFIT (Hanya bernilai jika status payment 'sudah') -->
-                        <td class="fw-bold {{ $statusPayment === 'sudah' ? ($totalProfitInvoice >= 0 ? 'text-primary' : 'text-danger') : 'text-muted' }}">
+                        <td class="fw-bold {{ $statusPayment === 'sudah' ? ($totalProfitInvoice >= 0 ? 'text-primary' : 'text-danger') : 'text-muted' }}" data-label="Total Profit">
                             @if($statusPayment === 'sudah')
                             Rp {{ number_format($totalProfitInvoice, 0, ',', '.') }}
                             @else
@@ -186,23 +383,42 @@
                         </td>
 
                         <!-- AKSI: PRINT INVOICE & TOMBOL DELETE INVOICE -->
-                        <td class="text-center">
+                        <td class="text-center" data-label="Aksi">
                             <div class="d-flex justify-content-center gap-1">
                                 <a href="{{ route('invoice.show', $invoice->id) }}" class="btn btn-sm btn-primary" title="Lihat/Print Invoice">
                                     <i class="bi bi-file-earmark-text"></i>
                                 </a>
 
-                                <!-- Tombol Hapus Invoice -->
+                                @if($invoice->is_locked)
+                                <span class="badge bg-secondary align-content-center" title="Invoice terkunci">
+                                    <i class="bi bi-lock-fill"></i> Terkunci
+                                </span>
+                                @elseif($statusPayment !== 'sudah')
+                                <button type="button" class="btn btn-sm btn-outline-secondary" title="Ubah Status Payment menjadi Sudah untuk mengunci invoice" aria-label="Invoice belum dapat dikunci" disabled>
+                                    <i class="bi bi-lock"></i>
+                                </button>
                                 <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalHapusInvoice{{ $invoice->id }}" title="Hapus Invoice">
                                     <i class="bi bi-trash"></i>
                                 </button>
+                                @else
+                                <form action="{{ route('invoice.lock', $invoice->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Kunci invoice ini? Setelah dikunci, data tidak dapat diubah atau dihapus.');">
+                                    @csrf
+                                    @method('PATCH')
+                                    <button type="submit" class="btn btn-sm btn-outline-dark" title="Kunci Data Invoice" aria-label="Kunci data invoice">
+                                        <i class="bi bi-lock"></i>
+                                    </button>
+                                </form>
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalHapusInvoice{{ $invoice->id }}" title="Hapus Invoice">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                @endif
                             </div>
                         </td>
                     </tr>
 
                     <!-- Baris Rincian Lengkap (Dropdown Collapse) -->
-                    <tr class="bg-light">
-                        <td colspan="9" class="p-0 border-0">
+                    <tr class="bg-light invoice-detail-row">
+                        <td colspan="10" class="p-0 border-0">
                             <div class="collapse p-3" id="collapseInvoice{{ $invoice->id }}">
                                 <div class="card card-body border bg-white shadow-sm mb-2">
                                     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -240,6 +456,9 @@
                                                         <br><small class="text-primary fw-semibold"><i class="bi bi-phone"></i> {{ $pItem['nama_device'] }}</small>
                                                         @endif
                                                         <br><small class="text-muted"><i class="bi bi-shop"></i> {{ $pItem['nama_toko'] }}</small>
+                                                        @if(!empty($pItem['nama_alamat']))
+                                                        <br><small class="text-danger"><i class="bi bi-geo-alt"></i> {{ $pItem['nama_alamat'] }}</small>
+                                                        @endif
                                                     </td>
                                                     <td>
                                                         @if(!empty($pItem['detail_imei']) && $pItem['detail_imei'] !== '-')
@@ -299,8 +518,8 @@
                     </tr>
 
                     @empty
-                    <tr>
-                        <td colspan="9" class="text-center py-4 text-muted">Belum ada histori penjualan.</td>
+                    <tr class="invoice-empty-row">
+                        <td colspan="10" class="text-center py-4 text-muted">Belum ada histori penjualan.</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -311,6 +530,7 @@
 
 <!-- CONTAINER MODAL HAPUS INVOICE (DILUAR TABLE AGAR TIDAK TERJADI BREAKDOWN HTML) -->
 @foreach($invoices as $invoice)
+@if(!$invoice->is_locked)
 <div class="modal fade" id="modalHapusInvoice{{ $invoice->id }}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
@@ -331,7 +551,7 @@
                         <strong>Total Tagihan:</strong> Rp {{ number_format($invoice->total ?? 0, 0, ',', '.') }}
                     </div>
                     <small class="text-danger mt-2 d-block fs-7">
-                        *Tindakan ini akan menghapus arsip invoice secara permanen dan mengembalikan status barang terkait ke status Siap Jual.
+                        *Tindakan ini menghapus arsip invoice secara permanen dan mengubah status barang terkait menjadi Bermasalah.
                     </small>
                 </div>
                 <div class="modal-footer py-2">
@@ -344,6 +564,7 @@
         </div>
     </div>
 </div>
+@endif
 @endforeach
 
 @endsection

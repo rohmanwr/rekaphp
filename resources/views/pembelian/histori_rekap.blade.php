@@ -160,9 +160,18 @@
 
                         <!-- Aksi Kembalikan Status -->
                         <td class="text-center">
-                            <button type="button" class="btn btn-sm btn-outline-warning text-dark fw-bold" data-bs-toggle="modal" data-bs-target="#modalRollbackStatus{{ $item->id }}" title="Kembalikan Status Ke Rekap Aktif">
-                                <i class="bi bi-arrow-counterclockwise"></i> Batal Selesai
-                            </button>
+                            @if($item->invoice_locked)
+                            <span class="badge bg-secondary"><i class="bi bi-lock-fill me-1"></i>Terkunci</span>
+                            @else
+                            <div class="d-grid gap-1">
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditHistori{{ $item->id }}" title="Edit data rekap">
+                                    <i class="bi bi-pencil-square me-1"></i>Edit
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-warning text-dark fw-bold" data-bs-toggle="modal" data-bs-target="#modalRollbackStatus{{ $item->id }}" title="Kembalikan Status Ke Rekap Aktif">
+                                    <i class="bi bi-arrow-counterclockwise"></i> Batal Selesai
+                                </button>
+                            </div>
+                            @endif
                         </td>
                     </tr>
                     @empty
@@ -240,9 +249,18 @@
                 <div class="small text-muted fs-7">
                     <i class="bi bi-calendar-event me-1"></i>Beli: {{ \Carbon\Carbon::parse($item->tanggal_beli)->format('d/m/Y') }}
                 </div>
-                <button type="button" class="btn btn-sm btn-outline-warning text-dark fw-bold px-3" data-bs-toggle="modal" data-bs-target="#modalRollbackStatus{{ $item->id }}">
-                    <i class="bi bi-arrow-counterclockwise me-1"></i> Batal Selesai
-                </button>
+                @if($item->invoice_locked)
+                <span class="badge bg-secondary"><i class="bi bi-lock-fill me-1"></i>Terkunci</span>
+                @else
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditHistori{{ $item->id }}" title="Edit data rekap" aria-label="Edit data rekap">
+                        <i class="bi bi-pencil-square"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-warning text-dark fw-bold px-3" data-bs-toggle="modal" data-bs-target="#modalRollbackStatus{{ $item->id }}">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Batal Selesai
+                    </button>
+                </div>
+                @endif
             </div>
         </div>
     </div>
@@ -256,6 +274,68 @@
 
 <!-- MODAL POPUP KEMBALIKAN STATUS (ROLLBACK) UNTUK SETIAP ITEM -->
 @foreach($pembelians as $item)
+@if(!$item->invoice_locked)
+<div class="modal fade" id="modalEditHistori{{ $item->id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fs-6 fw-bold"><i class="bi bi-pencil-square me-2"></i>Edit Data Histori Rekap</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('pembelian.histori_rekap.update', $item->id) }}" method="POST">
+                @csrf
+                @method('PUT')
+                <div class="modal-body">
+                    <div class="alert alert-info py-2 small">
+                        Harga jual, tanggal beli/terbit, dan nomor invoice tidak diubah. Perubahan data barang akan ikut tampil pada rincian invoice.
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Kode / No. Pesanan</label>
+                            <input type="text" name="kode_manual" class="form-control" value="{{ $item->kode_manual }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Nama Barang</label>
+                            <input type="text" name="nama_barang" class="form-control" value="{{ $item->nama_barang }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Nama Perangkat</label>
+                            <input type="text" name="nama_device" class="form-control" value="{{ $item->nama_device }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Nama Toko</label>
+                            <input type="text" name="nama_toko" class="form-control" value="{{ $item->nama_toko }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Alamat</label>
+                            <input type="text" name="nama_alamat" class="form-control" value="{{ $item->nama_alamat }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Via Pembelian</label>
+                            <input type="text" name="via" class="form-control" value="{{ $item->via }}" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">IMEI / Serial</label>
+                            <textarea name="detail_imei" class="form-control" rows="3">{{ $item->detail_imei }}</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Total Modal</label>
+                            <div class="input-group">
+                                <span class="input-group-text">Rp</span>
+                                <input type="number" name="total_modal" class="form-control" min="0" step="0.01" value="{{ $item->total_modal }}" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="modalRollbackStatus{{ $item->id }}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
@@ -309,6 +389,7 @@
         </div>
     </div>
 </div>
+@endif
 @endforeach
 
 <!-- MODAL POPUP CEK IMEI DUPLIKAT -->

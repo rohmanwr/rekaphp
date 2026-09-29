@@ -15,6 +15,7 @@ class Pembelian extends Model
         'nama_alamat',
         'kode_otomatis',
         'nama_barang',
+        'nama_device',
         'nama_toko',
         'via',
         'tanggal_beli',

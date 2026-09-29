@@ -91,6 +91,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ==========================================
     Route::middleware(['permission:histori_penjualan'])->group(function () {
         // PERBAIKAN: Arahkan ke PenjualanController::class
+        Route::patch('/invoice/{id}/lock', [PenjualanController::class, 'lockInvoice'])->name('invoice.lock');
         Route::patch('/penjualan/payment-status/{id}', [PenjualanController::class, 'updatePaymentStatus'])->name('penjualan.updatePaymentStatus');
 
         Route::delete('/invoice/{id}', [PembelianController::class, 'destroyInvoice'])->name('invoice.destroy');
@@ -103,6 +104,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ==========================================
     Route::middleware(['permission:histori_rekap'])->group(function () {
         Route::get('/pembelian/histori-rekap', [PembelianController::class, 'historiRekap'])->name('pembelian.histori_rekap');
+        Route::put('/pembelian/{id}/histori-rekap', [PembelianController::class, 'updateHistoriRekap'])->name('pembelian.histori_rekap.update');
         Route::patch('/pembelian/{id}/restore-status', [PembelianController::class, 'restoreStatus'])->name('pembelian.restoreStatus');
     });
 

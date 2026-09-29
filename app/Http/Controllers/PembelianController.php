@@ -10,6 +10,7 @@ use App\Models\Invoice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class PembelianController extends Controller
@@ -19,11 +20,13 @@ class PembelianController extends Controller
         $search = $request->input('search');
         $selectedStatus = $request->input('status');
 
-        // Sembunyikan data yang statusnya 'Jual' atau 'Selesai' dari rekap pembelian utama
-        $query = Pembelian::with('user')->whereNotIn('status', ['Jual', 'Selesai']);
+        $query = Pembelian::with('user');
 
         if (!empty($selectedStatus)) {
             $query->where('status', $selectedStatus);
+        } else {
+            // Sembunyikan data Jual dan Selesai hanya dari tampilan Semua.
+            $query->whereNotIn('status', ['Jual', 'Selesai']);
         }
 
         if (!empty($search)) {
@@ -137,6 +140,10 @@ class PembelianController extends Controller
 
         $pembelian = Pembelian::findOrFail($id);
 
+        if (Invoice::isLockedForPurchase($pembelian)) {
+            return redirect()->back()->with('error', 'Data ini terkunci oleh invoice dan tidak dapat diubah.');
+        }
+
         $updateData = ['status' => $status];
 
         // Jika status diubah dari Selesai, kosongkan referensi invoice
@@ -169,6 +176,20 @@ class PembelianController extends Controller
             'status_massal' => 'required|in:Belum Ready,Sudah Ready,Sudah Diambil,Bermasalah,Jual,Selesai',
         ]);
 
+        $updatableIds = [];
+        $lockedCount = 0;
+        foreach (Pembelian::whereIn('id', $pembelianIds)->get() as $pembelian) {
+            if (Invoice::isLockedForPurchase($pembelian)) {
+                $lockedCount++;
+            } else {
+                $updatableIds[] = $pembelian->id;
+            }
+        }
+
+        if (empty($updatableIds)) {
+            return redirect()->back()->with('error', 'Semua data yang dipilih terkunci oleh invoice dan tidak dapat diubah.');
+        }
+
         $statusBaru = $request->status_massal;
         $updateData = ['status' => $statusBaru];
 
@@ -177,14 +198,23 @@ class PembelianController extends Controller
             $updateData['no_invoice']     = null;
         }
 
-        Pembelian::whereIn('id', $pembelianIds)->update($updateData);
+        Pembelian::whereIn('id', $updatableIds)->update($updateData);
 
-        return redirect()->back()->with('success', 'Status ' . count($pembelianIds) . ' data pembelian berhasil diperbarui secara massal!');
+        $message = 'Status ' . count($updatableIds) . ' data pembelian berhasil diperbarui secara massal!';
+        if ($lockedCount > 0) {
+            $message .= ' ' . $lockedCount . ' data terkunci dilewati.';
+        }
+
+        return redirect()->back()->with('success', $message);
     }
 
     public function update(Request $request, $id)
     {
         $pembelian = Pembelian::findOrFail($id);
+
+        if (Invoice::isLockedForPurchase($pembelian)) {
+            return redirect()->back()->with('error', 'Data ini terkunci oleh invoice dan tidak dapat diubah.');
+        }
 
         $request->validate([
             'kode_manual'  => 'nullable|string|max:255',
@@ -230,6 +260,10 @@ class PembelianController extends Controller
     {
         $pembelian = Pembelian::findOrFail($id);
 
+        if (Invoice::isLockedForPurchase($pembelian)) {
+            return redirect()->back()->with('error', 'Data ini terkunci oleh invoice dan tidak dapat dihapus.');
+        }
+
         if (!empty($pembelian->file_lampiran)) {
             foreach ($pembelian->file_lampiran as $filePath) {
                 Storage::disk('public')->delete($filePath);
@@ -264,8 +298,10 @@ class PembelianController extends Controller
         $invoices = Invoice::all();
 
         foreach ($pembelians as $item) {
+            $item->invoice_locked = false;
+
             foreach ($invoices as $inv) {
-                $found = false;
+                $found = $item->no_invoice === $inv->referensi;
 
                 if (!empty($inv->pembelian_data) && is_array($inv->pembelian_data)) {
                     foreach ($inv->pembelian_data as $snap) {
@@ -276,6 +312,7 @@ class PembelianController extends Controller
                             $found = true;
                             $item->no_invoice      = $inv->referensi;
                             $item->tanggal_terbit  = $inv->tanggal;
+                            $item->invoice_locked = (bool) $inv->is_locked;
                             if (isset($snap['harga_jual']) && $snap['harga_jual'] > 0) {
                                 $item->harga_jual = (float) $snap['harga_jual'];
                             }
@@ -285,6 +322,7 @@ class PembelianController extends Controller
                 }
 
                 if ($found) {
+                    $item->invoice_locked = (bool) $inv->is_locked;
                     break;
                 }
             }
@@ -299,6 +337,134 @@ class PembelianController extends Controller
         return view('pembelian.histori_rekap', compact('pembelians', 'search'));
     }
 
+    public function updateHistoriRekap(Request $request, $id)
+    {
+        $pembelian = Pembelian::findOrFail($id);
+
+        if (Invoice::isLockedForPurchase($pembelian)) {
+            return redirect()->back()->with('error', 'Data ini terkunci oleh invoice dan tidak dapat diubah.');
+        }
+
+        $data = $request->validate([
+            'kode_manual'  => 'nullable|string|max:255',
+            'nama_alamat'  => 'nullable|string|max:255',
+            'nama_barang'  => 'required|string|max:255',
+            'nama_device'  => 'nullable|string|max:255',
+            'nama_toko'    => 'required|string|max:255',
+            'via'          => 'required|string|max:255',
+            'detail_imei'  => 'nullable|string|max:250',
+            'total_modal'  => 'required|numeric|min:0',
+        ]);
+
+        $previousImei = $pembelian->detail_imei;
+        $previousName = $pembelian->nama_barang;
+        $invoice = $pembelian->no_invoice
+            ? Invoice::where('referensi', $pembelian->no_invoice)->first()
+            : null;
+
+        if (!$invoice) {
+            $invoice = Invoice::all()->first(function ($candidate) use ($pembelian, $previousImei, $previousName) {
+                foreach ($candidate->pembelian_data ?? [] as $snapshotItem) {
+                    if (isset($snapshotItem['pembelian_id']) && (int) $snapshotItem['pembelian_id'] === (int) $pembelian->id) {
+                        return true;
+                    }
+
+                    if (
+                        !isset($snapshotItem['pembelian_id'])
+                        && !empty($previousImei)
+                        && ($snapshotItem['detail_imei'] ?? null) === $previousImei
+                        && ($snapshotItem['nama_barang'] ?? null) === $previousName
+                    ) {
+                        return true;
+                    }
+                }
+
+                return false;
+            });
+        }
+
+        if ($invoice?->is_locked) {
+            return redirect()->back()->with('error', 'Invoice ini terkunci dan datanya tidak dapat diubah.');
+        }
+
+        $updated = DB::transaction(function () use ($pembelian, $invoice, $data, $previousImei, $previousName) {
+            if (!$invoice) {
+                $pembelian->update($data);
+                return true;
+            }
+
+            $invoice = Invoice::whereKey($invoice->id)->lockForUpdate()->first();
+            if (!$invoice || $invoice->is_locked) {
+                return false;
+            }
+
+            $pembelian->update($data);
+
+            $snapshotItems = $invoice->pembelian_data ?? [];
+            $snapshotChanged = false;
+
+            foreach ($snapshotItems as &$snapshotItem) {
+                $matchesPurchase = isset($snapshotItem['pembelian_id'])
+                    && (int) $snapshotItem['pembelian_id'] === (int) $pembelian->id;
+                $matchesLegacyItem = !isset($snapshotItem['pembelian_id'])
+                    && !empty($previousImei)
+                    && ($snapshotItem['detail_imei'] ?? null) === $previousImei
+                    && ($snapshotItem['nama_barang'] ?? null) === $previousName;
+
+                if (!$matchesPurchase && !$matchesLegacyItem) {
+                    continue;
+                }
+
+                foreach (['nama_barang', 'nama_device', 'nama_toko', 'via', 'detail_imei', 'total_modal'] as $field) {
+                    $snapshotItem[$field] = $data[$field] ?? null;
+                }
+                $snapshotItem['nama_alamat'] = $data['nama_alamat'] ?? null;
+                $snapshotItem['total_profit'] = (float) ($snapshotItem['harga_jual'] ?? 0) - (float) $data['total_modal'];
+                $snapshotChanged = true;
+            }
+            unset($snapshotItem);
+
+            if ($snapshotChanged) {
+                $invoice->pembelian_data = $snapshotItems;
+            }
+
+            $invoiceItems = $invoice->items ?? [];
+            $itemsChanged = false;
+            foreach ($invoiceItems as &$invoiceItem) {
+                $purchaseIds = array_map('intval', $invoiceItem['pembelian_ids'] ?? []);
+                if (count($purchaseIds) !== 1 || $purchaseIds[0] !== (int) $pembelian->id) {
+                    continue;
+                }
+
+                foreach (['nama_barang', 'nama_device', 'nama_toko', 'via'] as $field) {
+                    $invoiceItem[$field] = $data[$field] ?? null;
+                }
+                $invoiceItem['detail_imei'] = $data['detail_imei'] ?? null;
+                $invoiceItem['imei_list'] = preg_split('/[\r\n,]+/', trim($data['detail_imei'] ?? ''), -1, PREG_SPLIT_NO_EMPTY);
+                $invoiceItem['total_modal'] = (float) $data['total_modal'];
+                $invoiceItem['total_profit'] = (float) ($invoiceItem['harga'] ?? 0) - (float) $data['total_modal'];
+                $itemsChanged = true;
+            }
+            unset($invoiceItem);
+
+            if ($itemsChanged) {
+                $invoice->items = $invoiceItems;
+            }
+
+            if ($snapshotChanged || $itemsChanged) {
+                $invoice->save();
+            }
+
+            return true;
+        });
+
+        if (!$updated) {
+            return redirect()->back()->with('error', 'Invoice ini terkunci dan datanya tidak dapat diubah.');
+        }
+
+        return redirect()->back()->with('success', 'Data histori rekap dan rincian invoice berhasil diperbarui.');
+    }
+
     /**
      * Mengembalikan status transaksi dari Selesai ke status rekap aktif (Rollback)
      */
@@ -309,6 +475,10 @@ class PembelianController extends Controller
         ]);
 
         $pembelian = Pembelian::findOrFail($id);
+
+        if (Invoice::isLockedForPurchase($pembelian)) {
+            return redirect()->back()->with('error', 'Data ini terkunci oleh invoice dan tidak dapat dibatalkan status Selesainya.');
+        }
 
         $updateData = ['status' => $request->status];
 
@@ -346,6 +516,14 @@ class PembelianController extends Controller
     public function toggleCheck($id)
     {
         $pembelian = Pembelian::findOrFail($id);
+
+        if (Invoice::isLockedForPurchase($pembelian)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data ini terkunci oleh invoice dan tidak dapat diubah.',
+            ], 423);
+        }
+
         $pembelian->is_checked = !$pembelian->is_checked;
         $pembelian->save();
 
@@ -363,6 +541,13 @@ class PembelianController extends Controller
         }
 
         $pembelians = Pembelian::whereIn('id', $ids)->get();
+
+        foreach ($pembelians as $pembelian) {
+            if (Invoice::isLockedForPurchase($pembelian)) {
+                return redirect()->back()->with('error', 'Data yang dipilih mencakup transaksi yang terkunci oleh invoice.');
+            }
+        }
+
         $barangs    = Barang::all()->keyBy('nama_barang');
 
         $groupedItems = [];
@@ -478,6 +663,11 @@ class PembelianController extends Controller
         $allPembelianIds = array_unique($allPembelianIds);
 
         $pembelianItems = Pembelian::whereIn('id', $allPembelianIds)->get();
+        foreach ($pembelianItems as $pembelian) {
+            if (Invoice::isLockedForPurchase($pembelian)) {
+                return redirect()->back()->with('error', 'Data yang dipilih mencakup transaksi yang terkunci oleh invoice.');
+            }
+        }
 
         $snapshotItems = [];
         foreach ($request->items as $invItem) {
@@ -493,6 +683,7 @@ class PembelianController extends Controller
                     'pembelian_id'  => $pItem->id,
                     'nama_barang'   => $pItem->nama_barang,
                     'nama_device'   => $pItem->nama_device ?? null,
+                    'nama_alamat'   => $pItem->nama_alamat ?? null,
                     'nama_toko'     => $pItem->nama_toko,
                     'via'           => $pItem->via,
                     'detail_imei'   => $pItem->detail_imei ?? '-',
@@ -542,6 +733,10 @@ class PembelianController extends Controller
     public function destroyInvoice($id)
     {
         $invoice = Invoice::findOrFail($id);
+
+        if ($invoice->is_locked) {
+            return redirect()->back()->with('error', 'Invoice ini terkunci dan tidak dapat dihapus.');
+        }
 
         // Ambil data snapshot pembelian yang terikat pada invoice ini
         $rawPembelianData = $invoice->pembelian_data;
