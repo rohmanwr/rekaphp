@@ -90,9 +90,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // 4. HISTORI PENJUALAN & ARSIP INVOICE (Permission: histori_penjualan)
     // ==========================================
     Route::middleware(['permission:histori_penjualan'])->group(function () {
-        // Route untuk update status payment dari histori penjualan
-        Route::patch('/penjualan/{id}/update-payment-status', [PenjualanController::class, 'updatePaymentStatus'])
-            ->name('penjualan.updatePaymentStatus');
+        // PERBAIKAN: Arahkan ke PenjualanController::class
+        Route::patch('/penjualan/payment-status/{id}', [PenjualanController::class, 'updatePaymentStatus'])->name('penjualan.updatePaymentStatus');
+
+        Route::delete('/invoice/{id}', [PembelianController::class, 'destroyInvoice'])->name('invoice.destroy');
         Route::get('/penjualan/histori', [PenjualanController::class, 'historiPenjualan'])->name('penjualan.histori');
         Route::put('/penjualan/update-histori-item/{invoiceId}', [PenjualanController::class, 'updateHistoriItem'])->name('penjualan.update-histori-item');
     });

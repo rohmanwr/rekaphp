@@ -6,11 +6,11 @@ use App\Models\Pembelian;
 use App\Models\Barang;
 use App\Models\Toko;
 use App\Models\Device;
+use App\Models\Invoice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
-use App\Models\Invoice;
 
 class PembelianController extends Controller
 {
@@ -29,6 +29,7 @@ class PembelianController extends Controller
         if (!empty($search)) {
             $query->where(function ($q) use ($search) {
                 $q->where('kode_manual', 'like', "%{$search}%")
+                    ->orWhere('kode_otomatis', 'like', "%{$search}%")
                     ->orWhere('nama_alamat', 'like', "%{$search}%")
                     ->orWhere('nama_barang', 'like', "%{$search}%")
                     ->orWhere('nama_toko', 'like', "%{$search}%")
@@ -41,9 +42,9 @@ class PembelianController extends Controller
 
         $pembelians = $query->latest()->get();
 
-        $barangs    = Barang::orderBy('nama_barang', 'asc')->get();
-        $tokos      = Toko::orderBy('nama_toko', 'asc')->get();
-        $devices    = Device::orderBy('nama_device', 'asc')->get();
+        $barangs = Barang::orderBy('nama_barang', 'asc')->get();
+        $tokos   = Toko::orderBy('nama_toko', 'asc')->get();
+        $devices = Device::orderBy('nama_device', 'asc')->get();
 
         return view('pembelian.index', compact('pembelians', 'barangs', 'tokos', 'devices', 'search', 'selectedStatus'));
     }
@@ -135,7 +136,16 @@ class PembelianController extends Controller
         ]);
 
         $pembelian = Pembelian::findOrFail($id);
-        $pembelian->update(['status' => $status]);
+
+        $updateData = ['status' => $status];
+
+        // Jika status diubah dari Selesai, kosongkan referensi invoice
+        if ($status !== 'Selesai') {
+            $updateData['tanggal_terbit'] = null;
+            $updateData['no_invoice']     = null;
+        }
+
+        $pembelian->update($updateData);
 
         return redirect()->back()->with('success', 'Status barang berhasil diperbarui!');
     }
@@ -145,17 +155,31 @@ class PembelianController extends Controller
      */
     public function updateStatusMassal(Request $request)
     {
+        $pembelianIds = array_merge(
+            $request->input('pembelian_ids', []),
+            $request->input('pembelian_ids_mobile', [])
+        );
+        $pembelianIds = array_unique(array_filter($pembelianIds));
+
+        if (empty($pembelianIds)) {
+            return redirect()->back()->with('error', 'Pilih minimal satu item untuk diperbarui secara massal.');
+        }
+
         $request->validate([
-            'pembelian_ids'   => 'required|array',
-            'pembelian_ids.*' => 'exists:pembelians,id',
-            'status_massal'   => 'required|in:Belum Ready,Sudah Ready,Sudah Diambil,Bermasalah,Jual,Selesai',
+            'status_massal' => 'required|in:Belum Ready,Sudah Ready,Sudah Diambil,Bermasalah,Jual,Selesai',
         ]);
 
-        Pembelian::whereIn('id', $request->pembelian_ids)->update([
-            'status' => $request->status_massal
-        ]);
+        $statusBaru = $request->status_massal;
+        $updateData = ['status' => $statusBaru];
 
-        return redirect()->back()->with('success', 'Status ' . count($request->pembelian_ids) . ' data pembelian berhasil diperbarui secara massal!');
+        if ($statusBaru !== 'Selesai') {
+            $updateData['tanggal_terbit'] = null;
+            $updateData['no_invoice']     = null;
+        }
+
+        Pembelian::whereIn('id', $pembelianIds)->update($updateData);
+
+        return redirect()->back()->with('success', 'Status ' . count($pembelianIds) . ' data pembelian berhasil diperbarui secara massal!');
     }
 
     public function update(Request $request, $id)
@@ -163,7 +187,7 @@ class PembelianController extends Controller
         $pembelian = Pembelian::findOrFail($id);
 
         $request->validate([
-            'kode_manual'  => 'required|string|max:255',
+            'kode_manual'  => 'nullable|string|max:255',
             'nama_alamat'  => 'nullable|string|max:255',
             'nama_barang'  => 'required|string|max:255',
             'nama_toko'    => 'required|string|max:255',
@@ -240,7 +264,6 @@ class PembelianController extends Controller
         $invoices = Invoice::all();
 
         foreach ($pembelians as $item) {
-            // Cari data snapshot di Invoice yang cocok dengan item ini
             foreach ($invoices as $inv) {
                 $found = false;
 
@@ -251,9 +274,8 @@ class PembelianController extends Controller
                             (isset($snap['detail_imei']) && !empty($item->detail_imei) && $snap['detail_imei'] == $item->detail_imei)
                         ) {
                             $found = true;
-                            $item->no_invoice = $inv->referensi;
-                            $item->tanggal_terbit = $inv->tanggal;
-                            // Paksa timpa harga jual dari snapshot invoice
+                            $item->no_invoice      = $inv->referensi;
+                            $item->tanggal_terbit  = $inv->tanggal;
                             if (isset($snap['harga_jual']) && $snap['harga_jual'] > 0) {
                                 $item->harga_jual = (float) $snap['harga_jual'];
                             }
@@ -268,13 +290,36 @@ class PembelianController extends Controller
             }
 
             // Hitung Ulang Total Profit Secara Otomatis: (Harga Jual - Total Modal Item Ini)
-            $modal = (float) ($item->total_modal ?? 0);
+            $modal     = (float) ($item->total_modal ?? 0);
             $hargaJual = (float) ($item->harga_jual ?? 0);
 
             $item->total_profit = $hargaJual - $modal;
         }
 
         return view('pembelian.histori_rekap', compact('pembelians', 'search'));
+    }
+
+    /**
+     * Mengembalikan status transaksi dari Selesai ke status rekap aktif (Rollback)
+     */
+    public function restoreStatus(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'required|in:Belum Ready,Sudah Ready,Sudah Diambil,Bermasalah,Jual,Selesai',
+        ]);
+
+        $pembelian = Pembelian::findOrFail($id);
+
+        $updateData = ['status' => $request->status];
+
+        if ($request->status !== 'Selesai') {
+            $updateData['tanggal_terbit'] = null;
+            $updateData['no_invoice']     = null;
+        }
+
+        $pembelian->update($updateData);
+
+        return redirect()->back()->with('success', 'Status transaksi berhasil dikembalikan! Data kini aktif kembali.');
     }
 
     public function barangSiapJual(Request $request)
@@ -301,11 +346,11 @@ class PembelianController extends Controller
     public function toggleCheck($id)
     {
         $pembelian = Pembelian::findOrFail($id);
-        $pembelian->is_checked = !$pembelian->is_checked; // Membalikkan status centang
+        $pembelian->is_checked = !$pembelian->is_checked;
         $pembelian->save();
 
         return response()->json([
-            'success' => true,
+            'success'    => true,
             'is_checked' => $pembelian->is_checked
         ]);
     }
@@ -318,15 +363,14 @@ class PembelianController extends Controller
         }
 
         $pembelians = Pembelian::whereIn('id', $ids)->get();
-        $barangs = Barang::all()->keyBy('nama_barang');
+        $barangs    = Barang::all()->keyBy('nama_barang');
 
         $groupedItems = [];
         foreach ($pembelians as $item) {
-            $namaBarang = $item->nama_barang;
+            $namaBarang   = $item->nama_barang;
             $masterBarang = $barangs[$namaBarang] ?? null;
-            $hargaJual = $masterBarang ? $masterBarang->harga_jual : 0;
+            $hargaJual    = $masterBarang ? $masterBarang->harga_jual : 0;
 
-            // Menggunakan kombinasi nama barang dan harga sebagai key agar tidak saling menimpa
             $groupKey = Str::slug($namaBarang) . '_' . $hargaJual;
 
             $imeis = [];
@@ -341,7 +385,6 @@ class PembelianController extends Controller
                 }
             }
 
-            // Bagian "Unit ID" dihapus agar tidak muncul jika IMEI kosong
             if (empty($imeis)) {
                 $imeis = [];
             }
@@ -349,33 +392,31 @@ class PembelianController extends Controller
             if (!isset($groupedItems[$groupKey])) {
                 $groupedItems[$groupKey] = [
                     'pembelian_ids' => [$item->id],
-                    'nama_barang' => $namaBarang,
-                    'imei_list' => $imeis,
-                    'kuantitas' => count($imeis) > 0 ? count($imeis) : 1, // Tetap hitung qty 1 jika tidak ada IMEI
-                    'harga' => $hargaJual,
+                    'nama_barang'   => $namaBarang,
+                    'imei_list'     => $imeis,
+                    'kuantitas'     => count($imeis) > 0 ? count($imeis) : 1,
+                    'harga'         => $hargaJual,
                 ];
                 $groupedItems[$groupKey]['jumlah'] = $groupedItems[$groupKey]['kuantitas'] * $hargaJual;
             } else {
                 $groupedItems[$groupKey]['pembelian_ids'][] = $item->id;
-                $groupedItems[$groupKey]['imei_list'] = array_merge($groupedItems[$groupKey]['imei_list'], $imeis);
-                $groupedItems[$groupKey]['kuantitas'] = count($groupedItems[$groupKey]['imei_list']) > 0 ? count($groupedItems[$groupKey]['imei_list']) : ($groupedItems[$groupKey]['kuantitas'] + 1);
-                $groupedItems[$groupKey]['jumlah'] = $groupedItems[$groupKey]['kuantitas'] * $hargaJual;
+                $groupedItems[$groupKey]['imei_list']     = array_merge($groupedItems[$groupKey]['imei_list'], $imeis);
+                $groupedItems[$groupKey]['kuantitas']     = count($groupedItems[$groupKey]['imei_list']) > 0 ? count($groupedItems[$groupKey]['imei_list']) : ($groupedItems[$groupKey]['kuantitas'] + 1);
+                $groupedItems[$groupKey]['jumlah']        = $groupedItems[$groupKey]['kuantitas'] * $hargaJual;
             }
         }
 
         $lastInvoice = Invoice::latest()->first();
-        $nextNumber = $lastInvoice ? ((int)substr($lastInvoice->referensi, -5)) + 1 : 1;
-        $referensi = 'INV/' . sprintf('%05d', $nextNumber);
+        $nextNumber  = $lastInvoice ? ((int)substr($lastInvoice->referensi, -5)) + 1 : 1;
+        $referensi   = 'INV/' . sprintf('%05d', $nextNumber);
 
         return view('pembelian.buat_invoice', compact('groupedItems', 'referensi'));
     }
 
     public function saveChecklist(Request $request)
     {
-        // Reset semua centang milik user menjadi false terlebih dahulu
         Pembelian::where('user_id', Auth::id())->update(['is_checked' => false]);
 
-        // Jika ada checkbox yang dicentang, ubah statusnya menjadi true
         if ($request->has('checked_ids')) {
             Pembelian::whereIn('id', $request->checked_ids)->update(['is_checked' => true]);
         }
@@ -475,6 +516,7 @@ class PembelianController extends Controller
             'subtotal'         => $subtotal,
             'total'            => $subtotal,
             'terbilang'        => $terbilangStr,
+            'status_payment'   => 'belum',
         ]);
 
         if (!empty($allPembelianIds)) {
@@ -485,7 +527,7 @@ class PembelianController extends Controller
             ]);
         }
 
-        return redirect()->route('invoice.show', $invoice->id)->with('success', 'Invoice berhasil diterbitkan dan harga jual terkunci sesuai print!');
+        return redirect()->route('invoice.show', $invoice->id)->with('success', 'Invoice berhasil diterbitkan!');
     }
 
     public function showInvoice($id)
@@ -494,30 +536,47 @@ class PembelianController extends Controller
         return view('pembelian.print_invoice', compact('invoice'));
     }
 
-    public function restoreStatus(Request $request, $id)
+    /**
+     * Menghapus Invoice dan mengembalikan status item pembelian terkait ke 'Sudah Ready'
+     */
+    public function destroyInvoice($id)
     {
-        $request->validate([
-            'status' => 'required|in:Belum Ready,Sudah Ready,Sudah Diambil,Bermasalah,Jual,Selesai',
-        ]);
+        $invoice = Invoice::findOrFail($id);
 
-        $pembelian = Pembelian::findOrFail($id);
-
-        $updateData = ['status' => $request->status];
-
-        if ($request->status !== 'Selesai') {
-            $updateData['tanggal_terbit'] = null;
-            $updateData['no_invoice'] = null;
+        // Ambil data snapshot pembelian yang terikat pada invoice ini
+        $rawPembelianData = $invoice->pembelian_data;
+        if (is_string($rawPembelianData)) {
+            $rawPembelianData = json_decode($rawPembelianData, true);
         }
 
-        $pembelian->update($updateData);
+        if (!empty($rawPembelianData) && is_array($rawPembelianData)) {
+            $pembelianIds = [];
+            foreach ($rawPembelianData as $snap) {
+                if (isset($snap['pembelian_id'])) {
+                    $pembelianIds[] = $snap['pembelian_id'];
+                }
+            }
 
-        return redirect()->back()->with('success', 'Status berhasil dikembalikan!');
-    }
+            if (!empty($pembelianIds)) {
+                // Reset status pembelian kembali ke 'Sudah Ready' & hapus referensi invoice
+                Pembelian::whereIn('id', array_unique($pembelianIds))->update([
+                    'status'         => 'Sudah Ready',
+                    'no_invoice'     => null,
+                    'tanggal_terbit' => null,
+                ]);
+            }
+        } else {
+            // Fallback jika tidak ada ID snapshot, hapus berdasarkan no_invoice
+            Pembelian::where('no_invoice', $invoice->referensi)->update([
+                'status'         => 'Sudah Ready',
+                'no_invoice'     => null,
+                'tanggal_terbit' => null,
+            ]);
+        }
 
-    public function historiPenjualan(Request $request)
-    {
-        $invoices = Invoice::latest()->get();
+        // Hapus record invoice
+        $invoice->delete();
 
-        return view('penjualan.histori', compact('invoices'));
+        return redirect()->back()->with('success', 'Data Invoice berhasil dihapus dan status barang dikembalikan ke Ready!');
     }
 }

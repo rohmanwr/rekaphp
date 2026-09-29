@@ -9,6 +9,7 @@ use App\Models\Device;
 use App\Models\Invoice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class PenjualanController extends Controller
@@ -20,7 +21,6 @@ class PenjualanController extends Controller
     {
         $search = $request->input('search');
 
-        // Gunakan keyBy('nama_barang') agar $barangs[$item->nama_barang] bisa langsung diakses
         $barangs = Barang::orderBy('nama_barang', 'asc')->get()->keyBy('nama_barang');
         $tokos   = Toko::orderBy('nama_toko', 'asc')->get();
         $devices = Device::orderBy('nama_device', 'asc')->get();
@@ -39,14 +39,13 @@ class PenjualanController extends Controller
             ->latest()
             ->get();
 
-        // Ubah variabel $siapJualBarangs menjadi $pembelians agar cocok dengan Blade view Anda
         $pembelians = $siapJualBarangs;
 
         return view('penjualan.siap_jual', compact('pembelians', 'search', 'barangs', 'tokos', 'devices'));
     }
 
     /**
-     * Menampilkan menu Histori Penjualan dengan Mutlak Lock Harga Invoice (Tanpa Mengubah Master)
+     * Menampilkan menu Histori Penjualan
      */
     public function historiPenjualan(Request $request)
     {
@@ -86,7 +85,7 @@ class PenjualanController extends Controller
                 $tglBeliVal = $it['tanggal_beli'] ?? $invoice->tanggal;
                 $lampiranVal = $it['file_lampiran'] ?? [];
 
-                // Cari data asli ke tabel Pembelian untuk Total Modal mutlak
+                // Cari data asli ke tabel Pembelian untuk Total Modal
                 $pembelianRecord = null;
                 if (isset($it['pembelian_ids']) && is_array($it['pembelian_ids']) && count($it['pembelian_ids']) > 0) {
                     $pembelianRecord = Pembelian::whereIn('id', $it['pembelian_ids'])->first();
@@ -111,9 +110,6 @@ class PenjualanController extends Controller
                     if (empty($tglBeliVal)) $tglBeliVal = $pembelianRecord->tanggal_beli;
                 }
 
-                // =========================================================================
-                // PENGUNCIAN HARGA JUAL HISTORIS MUTLAK (TIDAK LAGI MEMBACA MASTER BARANG)
-                // =========================================================================
                 $hargaJualVal = 0;
                 if (isset($it['harga_jual']) && is_numeric($it['harga_jual'])) {
                     $hargaJualVal = (float) $it['harga_jual'];
@@ -124,10 +120,9 @@ class PenjualanController extends Controller
                 } elseif (isset($it['jumlah']) && is_numeric($it['jumlah'])) {
                     $hargaJualVal = (float) $it['jumlah'];
                 } else {
-                    $hargaJualVal = 0; // Kunci tetap 0 jika memang tidak ada data historis, TANPA mencarinya ke master barang
+                    $hargaJualVal = 0;
                 }
 
-                // Hitung Total Profit = Harga Jual - Total Modal
                 $profitVal = $hargaJualVal - $modalVal;
 
                 if (!isset($it['harga_jual']) || $it['harga_jual'] != $hargaJualVal) {
@@ -142,15 +137,18 @@ class PenjualanController extends Controller
                     'detail_imei'   => $imeiVal,
                     'tanggal_beli'  => $tglBeliVal,
                     'total_modal'   => $modalVal,
-                    'harga_jual'    => $hargaJualVal, // Terkunci mutlak sesuai data cetak invoice
+                    'harga_jual'    => $hargaJualVal,
                     'total_profit'  => $profitVal,
                     'file_lampiran' => $lampiranVal,
                 ];
             }
 
+            // Gunakan Query Builder langsung agar tidak menimpa status_payment di DB
             if ($dataHasChanged && !empty($normalizedItems)) {
+                DB::table('invoices')
+                    ->where('id', $invoice->id)
+                    ->update(['pembelian_data' => json_encode($normalizedItems)]);
                 $invoice->pembelian_data = $normalizedItems;
-                $invoice->save();
             }
         }
 
@@ -254,7 +252,7 @@ class PenjualanController extends Controller
     }
 
     /**
-     * Update status payment invoice
+     * Update status payment invoice (Belum / Sudah)
      */
     public function updatePaymentStatus(Request $request, $id)
     {
@@ -262,20 +260,19 @@ class PenjualanController extends Controller
             'status_payment' => 'required|in:belum,sudah',
         ]);
 
-        $invoice = Invoice::findOrFail($id);
+        $statusInput = strtolower($request->status_payment);
+        $tanggalPayment = ($statusInput === 'sudah') ? Carbon::now()->toDateString() : null;
 
-        // Jika diubah menjadi "sudah", catat tanggal hari ini sebagai tanggal payment
-        if ($request->status_payment === 'sudah') {
-            $invoice->status_payment = 'sudah';
-            $invoice->tanggal_payment = Carbon::now()->format('Y-m-d');
-        } else {
-            $invoice->status_payment = 'belum';
-            $invoice->tanggal_payment = null;
-        }
+        // Eksekusi update langsung ke Query Builder
+        DB::table('invoices')
+            ->where('id', $id)
+            ->update([
+                'status_payment'  => $statusInput,
+                'tanggal_payment' => $tanggalPayment,
+                'updated_at'      => Carbon::now(),
+            ]);
 
-        $invoice->save();
-
-        return redirect()->back()->with('success', 'Status payment invoice ' . $invoice->referensi . ' berhasil diperbarui!');
+        return redirect()->back()->with('success', 'Status payment berhasil diperbarui menjadi ' . strtoupper($statusInput) . '!');
     }
 
     /**
@@ -309,12 +306,10 @@ class PenjualanController extends Controller
             $items[$index]['total_modal'] = $request->input('total_modal');
 
             if ($isSnapshot) {
-                $invoice->pembelian_data = $items;
+                DB::table('invoices')->where('id', $invoiceId)->update(['pembelian_data' => json_encode($items)]);
             } else {
-                $invoice->items = $items;
+                DB::table('invoices')->where('id', $invoiceId)->update(['items' => json_encode($items)]);
             }
-
-            $invoice->save();
 
             return redirect()->back()->with('success', 'Rincian data item histori berhasil diperbarui!');
         }

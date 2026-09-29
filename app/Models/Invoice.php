@@ -16,17 +16,19 @@ class Invoice extends Model
         'nama_pelanggan',
         'alamat_pelanggan',
         'items',
-        'pembelian_data', // Ditambahkan agar data snapshot pembelian tersimpan dengan benar
+        'pembelian_data',
         'subtotal',
         'total',
-        'bank_info',
         'terbilang',
+        'status_payment',  // <-- WAJIB ADA
+        'tanggal_payment', // <-- WAJIB ADA
     ];
 
     protected $casts = [
         'items' => 'array',
-        'pembelian_data' => 'array', // Ditambahkan agar otomatis dibaca sebagai array oleh Laravel
+        'pembelian_data' => 'array',
         'tanggal' => 'date',
         'jatuh_tempo' => 'date',
+        'tanggal_payment' => 'date',
     ];
 }

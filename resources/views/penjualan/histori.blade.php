@@ -9,7 +9,14 @@
 
 @if(session('success'))
 <div class="alert alert-success alert-dismissible fade show" role="alert">
-    {{ session('success') }}
+    <i class="bi bi-check-circle-fill me-2"></i>{{ session('success') }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+@endif
+
+@if(session('error'))
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ session('error') }}
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
 @endif
@@ -25,10 +32,10 @@
                         <th>No. Invoice</th>
                         <th>Pelanggan</th>
                         <th>Tanggal Terbit</th>
-                        <th style="width: 150px;">Status Payment</th>
+                        <th style="width: 160px;">Status Payment</th>
                         <th>Total Tagihan</th>
                         <th>Total Profit</th>
-                        <th class="text-center" style="width: 120px;">Aksi</th>
+                        <th class="text-center" style="width: 140px;">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -152,10 +159,10 @@
 
                         <!-- DROPDOWN UPDATE STATUS PAYMENT -->
                         <td>
-                            <form action="{{ route('penjualan.updatePaymentStatus', $invoice->id) }}" method="POST">
+                            <form id="formPayment{{ $invoice->id }}" action="{{ route('penjualan.updatePaymentStatus', $invoice->id) }}" method="POST">
                                 @csrf
                                 @method('PATCH')
-                                <select name="status_payment" class="form-select form-select-sm rounded-pill fw-bold {{ $statusPayment === 'sudah' ? 'bg-success text-white' : 'bg-warning text-dark' }}" onchange="this.form.submit()">
+                                <select name="status_payment" class="form-select form-select-sm rounded-pill fw-bold {{ $statusPayment === 'sudah' ? 'bg-success text-white' : 'bg-warning text-dark' }}" onchange="document.getElementById('formPayment{{ $invoice->id }}').submit()">
                                     <option value="belum" {{ $statusPayment === 'belum' ? 'selected' : '' }}>🔴 Belum</option>
                                     <option value="sudah" {{ $statusPayment === 'sudah' ? 'selected' : '' }}>🟢 Sudah</option>
                                 </select>
@@ -178,10 +185,18 @@
                             @endif
                         </td>
 
+                        <!-- AKSI: PRINT INVOICE & TOMBOL DELETE INVOICE -->
                         <td class="text-center">
-                            <a href="{{ route('invoice.show', $invoice->id) }}" class="btn btn-sm btn-primary">
-                                <i class="bi bi-file-earmark-text"></i> Invoice
-                            </a>
+                            <div class="d-flex justify-content-center gap-1">
+                                <a href="{{ route('invoice.show', $invoice->id) }}" class="btn btn-sm btn-primary" title="Lihat/Print Invoice">
+                                    <i class="bi bi-file-earmark-text"></i>
+                                </a>
+
+                                <!-- Tombol Hapus Invoice -->
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalHapusInvoice{{ $invoice->id }}" title="Hapus Invoice">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
 
@@ -282,6 +297,7 @@
                             </div>
                         </td>
                     </tr>
+
                     @empty
                     <tr>
                         <td colspan="9" class="text-center py-4 text-muted">Belum ada histori penjualan.</td>
@@ -292,4 +308,42 @@
         </div>
     </div>
 </div>
+
+<!-- CONTAINER MODAL HAPUS INVOICE (DILUAR TABLE AGAR TIDAK TERJADI BREAKDOWN HTML) -->
+@foreach($invoices as $invoice)
+<div class="modal fade" id="modalHapusInvoice{{ $invoice->id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-danger text-white py-2">
+                <h5 class="modal-title fs-6 fw-bold">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Konfirmasi Hapus Invoice
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('invoice.destroy', $invoice->id) }}" method="POST">
+                @csrf
+                @method('DELETE')
+                <div class="modal-body p-3">
+                    <p class="mb-2">Apakah Anda yakin ingin menghapus data invoice berikut?</p>
+                    <div class="p-2 bg-light border rounded small">
+                        <strong>No. Invoice:</strong> {{ $invoice->referensi }}<br>
+                        <strong>Pelanggan:</strong> {{ $invoice->nama_pelanggan }}<br>
+                        <strong>Total Tagihan:</strong> Rp {{ number_format($invoice->total ?? 0, 0, ',', '.') }}
+                    </div>
+                    <small class="text-danger mt-2 d-block fs-7">
+                        *Tindakan ini akan menghapus arsip invoice secara permanen dan mengembalikan status barang terkait ke status Siap Jual.
+                    </small>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-sm btn-light border" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-sm btn-danger fw-bold">
+                        <i class="bi bi-trash me-1"></i> Ya, Hapus Invoice
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endforeach
+
 @endsection
