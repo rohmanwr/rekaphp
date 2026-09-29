@@ -10,6 +10,7 @@ use App\Http\Controllers\TokoController;
 use App\Http\Controllers\Auth\DirectPasswordResetController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\KeuanganController;
+use App\Http\Controllers\ScanController;
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -36,6 +37,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Fitur Scanner Serial Number (Menggunakan ScanController)
+    Route::get('/scan-sn', [ScanController::class, 'index'])->name('scan.sn');
 
     // ==========================================
     // 1. MENU PEMBELIAN & INPUT BARANG (Permission: pembelian)
