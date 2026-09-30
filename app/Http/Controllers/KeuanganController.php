@@ -6,6 +6,7 @@ use App\Models\Keuangan;
 use App\Models\Invoice;
 use App\Models\Barang;
 use App\Models\Pembelian;
+use App\Models\ReturBarang;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -25,10 +26,10 @@ class KeuanganController extends Controller
         $masterBarangs = Barang::all()->keyBy('nama_barang');
 
         // =========================================================================
-        // AMBIL INVOICE HANYA YANG BERSTATUS PAYMENT 'SUDAH' PADA TANGGAL PAYMENT TERSEBUT
+        // Ambil invoice lunas berdasarkan tanggal terbit agar selaras dengan histori penjualan.
         // =========================================================================
         $invoices = Invoice::whereIn('status_payment', ['sudah', 'Sudah'])
-            ->whereDate('tanggal_payment', $tanggal)
+            ->whereDate('tanggal', $tanggal)
             ->get();
 
         $jumlahUnit = 0;
@@ -103,6 +104,8 @@ class KeuanganController extends Controller
             }
         }
 
+        $totalProfitNominal -= $this->returnProfitForInvoiceDate($tanggal);
+
         // =========================================================================
         // AMBIL TOTAL ASET HANDPHONE (STATUS: "Sudah Diambil")
         // =========================================================================
@@ -174,7 +177,7 @@ class KeuanganController extends Controller
         // Hitung ulang profit
         $masterBarangs = Barang::all()->keyBy('nama_barang');
         $invoices = Invoice::whereIn('status_payment', ['sudah', 'Sudah'])
-            ->whereDate('tanggal_payment', $tanggal)
+            ->whereDate('tanggal', $tanggal)
             ->get();
 
         $totalProfitNominal = 0;
@@ -242,6 +245,8 @@ class KeuanganController extends Controller
             }
         }
 
+        $totalProfitNominal -= $this->returnProfitForInvoiceDate($tanggal);
+
         // =========================================================================
         // CEK APAKAH USER MENGKLIK TOMBOL DELETE ASET HP SEBELUM MENYIMPAN
         // =========================================================================
@@ -266,5 +271,12 @@ class KeuanganController extends Controller
 
         return redirect()->route('keuangan.index', ['tanggal' => $tanggal])
             ->with('success', 'Progress keuangan tanggal ' . Carbon::parse($tanggal)->translatedFormat('d F Y') . ' berhasil disimpan!');
+    }
+
+    private function returnProfitForInvoiceDate(string $tanggal): float
+    {
+        return (float) ReturBarang::whereHas('invoice', fn($query) => $query->whereDate('tanggal', $tanggal))
+            ->get()
+            ->sum(fn($return) => (float) $return->nilai_retur - (float) $return->nilai_modal);
     }
 }

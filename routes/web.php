@@ -93,6 +93,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // PERBAIKAN: Arahkan ke PenjualanController::class
         Route::patch('/invoice/{id}/lock', [PenjualanController::class, 'lockInvoice'])->name('invoice.lock');
         Route::patch('/penjualan/payment-status/{id}', [PenjualanController::class, 'updatePaymentStatus'])->name('penjualan.updatePaymentStatus');
+        Route::get('/penjualan/retur', [PenjualanController::class, 'returIndex'])->name('penjualan.retur.index');
+        Route::post('/penjualan/retur', [PenjualanController::class, 'storeRetur'])->name('penjualan.retur.store');
 
         Route::delete('/invoice/{id}', [PembelianController::class, 'destroyInvoice'])->name('invoice.destroy');
         Route::get('/penjualan/histori', [PenjualanController::class, 'historiPenjualan'])->name('penjualan.histori');

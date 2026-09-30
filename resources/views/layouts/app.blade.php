@@ -334,6 +334,11 @@
                         <i class="bi bi-receipt-cutoff"></i> Histori Penjualan
                     </a>
                 </li>
+                <li>
+                    <a href="{{ route('penjualan.retur.index') }}" class="{{ request()->routeIs('penjualan.retur.*') ? 'active' : '' }}">
+                        <i class="bi bi-arrow-return-left text-warning"></i> Retur Barang
+                    </a>
+                </li>
                 @endif
 
                 <!-- Histori Rekap -->

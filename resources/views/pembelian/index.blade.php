@@ -85,6 +85,7 @@
         $countBermasalah = (clone $baseCountQuery)->where('status', 'Bermasalah')->count();
         $countJual = \App\Models\Pembelian::where('status', 'Jual')->count();
         $countSelesai = \App\Models\Pembelian::where('status', 'Selesai')->count();
+        $countRetur = \App\Models\Pembelian::where('status', 'Retur')->count();
         @endphp
 
         <!-- Filter Tombol Status Beserta Jumlah (Mobile Horizontal Scrollable) -->
@@ -124,6 +125,11 @@
             <a href="{{ route('pembelian.index', array_filter(['search' => $search, 'status' => 'Selesai'])) }}"
                 class="btn btn-sm rounded-pill flex-shrink-0 {{ $selectedStatus == 'Selesai' ? 'btn-secondary text-white fw-bold' : 'btn-outline-secondary' }}">
                 🏁 Selesai <span class="badge bg-light text-dark ms-1">{{ $countSelesai }}</span>
+            </a>
+
+            <a href="{{ route('pembelian.index', array_filter(['search' => $search, 'status' => 'Retur'])) }}"
+                class="btn btn-sm rounded-pill flex-shrink-0 {{ $selectedStatus == 'Retur' ? 'btn-danger text-white fw-bold' : 'btn-outline-danger' }}">
+                <i class="bi bi-arrow-return-left me-1"></i>Retur <span class="badge bg-light text-dark ms-1">{{ $countRetur }}</span>
             </a>
         </div>
     </div>
@@ -222,6 +228,7 @@
                             <td class="fw-bold">Rp {{ number_format($item->total_modal, 0, ',', '.') }}</td>
                             <td>
                                 <select form="formStatusSingle{{ $item->id }}" class="form-select form-select-sm rounded-pill fw-semibold" onchange="document.getElementById('statusSingleValue{{ $item->id }}').value=this.value; document.getElementById('formStatusSingle{{ $item->id }}').submit()" style="width: fit-content; min-width: 140px;">
+                                    @if($item->status == 'Retur')<option value="Retur" selected disabled>↩️ Retur</option>@endif
                                     <option value="Belum Ready" {{ $item->status == 'Belum Ready' ? 'selected' : '' }}>⏳ Belum Ready</option>
                                     <option value="Sudah Ready" {{ $item->status == 'Sudah Ready' ? 'selected' : '' }}>✅ Sudah Ready</option>
                                     <option value="Sudah Diambil" {{ $item->status == 'Sudah Diambil' ? 'selected' : '' }}>📦 Sudah Diambil</option>
@@ -357,6 +364,7 @@
                 <div class="d-flex align-items-center justify-content-between gap-2 pt-2 border-top mt-2">
                     <!-- Dropdown Quick Update Status Mobile -->
                     <select form="formStatusSingle{{ $item->id }}" class="form-select form-select-sm rounded-pill fw-semibold w-auto" onchange="document.getElementById('statusSingleValue{{ $item->id }}').value=this.value; document.getElementById('formStatusSingle{{ $item->id }}').submit()">
+                        @if($item->status == 'Retur')<option value="Retur" selected disabled>↩️ Retur</option>@endif
                         <option value="Belum Ready" {{ $item->status == 'Belum Ready' ? 'selected' : '' }}>⏳ Belum Ready</option>
                         <option value="Sudah Ready" {{ $item->status == 'Sudah Ready' ? 'selected' : '' }}>✅ Sudah Ready</option>
                         <option value="Sudah Diambil" {{ $item->status == 'Sudah Diambil' ? 'selected' : '' }}>📦 Sudah Diambil</option>

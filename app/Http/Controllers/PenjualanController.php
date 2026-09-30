@@ -7,9 +7,12 @@ use App\Models\Barang;
 use App\Models\Toko;
 use App\Models\Device;
 use App\Models\Invoice;
+use App\Models\ReturBarang;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Carbon\Carbon;
 
 class PenjualanController extends Controller
@@ -51,10 +54,14 @@ class PenjualanController extends Controller
     {
         $search = $request->input('search');
 
-        $invoices = Invoice::when($search, function ($query, $search) {
-            return $query->where('referensi', 'like', "%{$search}%")
-                ->orWhere('nama_pelanggan', 'like', "%{$search}%");
-        })
+        $invoices = Invoice::withSum('returns as retur_total_nilai', 'nilai_retur')
+            ->withSum('returns as retur_total_modal', 'nilai_modal')
+            ->withSum('returns as retur_total_kuantitas', 'kuantitas')
+            ->with('returns:id,invoice_id,item_index,kuantitas,detail_imei')
+            ->when($search, function ($query, $search) {
+                return $query->where('referensi', 'like', "%{$search}%")
+                    ->orWhere('nama_pelanggan', 'like', "%{$search}%");
+            })
             ->latest()
             ->get();
 
@@ -157,6 +164,375 @@ class PenjualanController extends Controller
         }
 
         return view('penjualan.histori', compact('invoices', 'search'));
+    }
+
+    public function returIndex(Request $request)
+    {
+        $invoices = Invoice::where('is_locked', true)->latest('tanggal')->get();
+        $returnRecords = ReturBarang::whereIn('invoice_id', $invoices->pluck('id'))
+            ->get(['invoice_id', 'item_index', 'kuantitas', 'detail_imei']);
+        $usage = [];
+        $returnedImeisByItem = [];
+        foreach ($returnRecords as $returnRecord) {
+            $key = $returnRecord->invoice_id . ':' . $returnRecord->item_index;
+            $usage[$key] = ($usage[$key] ?? 0) + (int) $returnRecord->kuantitas;
+            $returnedImeisByItem[$key] = array_merge(
+                $returnedImeisByItem[$key] ?? [],
+                array_map('strtolower', $this->parseImeis($returnRecord->detail_imei ?? ''))
+            );
+        }
+
+        $invoiceOptions = [];
+        foreach ($invoices as $invoice) {
+            $items = is_array($invoice->items) ? array_values($invoice->items) : [];
+            $availableItems = [];
+
+            foreach ($items as $index => $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+
+                $details = $this->getInvoiceItemDetails($item);
+                $itemKey = $invoice->id . ':' . $index;
+                $returned = (int) ($usage[$itemKey] ?? 0);
+                $remaining = max(0, $details['quantity'] - $returned);
+                $returnedImeis = $returnedImeisByItem[$itemKey] ?? [];
+                $availableImeis = array_values(array_filter(
+                    $details['imeis'],
+                    fn($imei) => !in_array(strtolower($imei), $returnedImeis, true)
+                ));
+
+                if ($remaining > 0) {
+                    $availableItems[] = [
+                        'index' => $index,
+                        'name' => $details['name'],
+                        'quantity' => $details['quantity'],
+                        'remaining' => $remaining,
+                        'price' => $details['price'],
+                        'imeis' => $availableImeis,
+                        'has_serials' => count($details['imeis']) > 0,
+                    ];
+                }
+            }
+
+            if ($availableItems) {
+                $invoiceOptions[] = [
+                    'id' => $invoice->id,
+                    'reference' => $invoice->referensi,
+                    'customer' => $invoice->nama_pelanggan,
+                    'items' => $availableItems,
+                ];
+            }
+        }
+
+        $returns = ReturBarang::with(['invoice:id,referensi,nama_pelanggan', 'user:id,name'])
+            ->latest('tanggal_retur')
+            ->latest('id')
+            ->paginate(20);
+        $totalCases = ReturBarang::count();
+        $totalQuantity = (int) ReturBarang::sum('kuantitas');
+        $totalValue = (float) ReturBarang::sum('nilai_retur');
+
+        $selectedInvoiceId = $request->query('invoice_id');
+        $selectedItemIndex = $request->query('item_index');
+        $selectedQuantity = max(1, (int) $request->query('kuantitas', 1));
+        $selectedImeis = $this->parseImeis($request->query('detail_imei', ''));
+
+        return view('penjualan.retur', compact(
+            'invoiceOptions',
+            'returns',
+            'totalCases',
+            'totalQuantity',
+            'totalValue',
+            'selectedInvoiceId',
+            'selectedItemIndex',
+            'selectedQuantity',
+            'selectedImeis'
+        ));
+    }
+
+    public function storeRetur(Request $request)
+    {
+        if (!$request->has('returns') && $request->has('item_index')) {
+            $request->merge([
+                'returns' => [[
+                    'item_index' => $request->input('item_index'),
+                    'kuantitas' => $request->input('kuantitas'),
+                    'alasan' => $request->input('alasan'),
+                    'kondisi' => $request->input('kondisi'),
+                    'imeis' => $this->parseImeis($request->input('detail_imei', '')),
+                    'catatan' => $request->input('catatan'),
+                ]],
+            ]);
+        }
+
+        $validated = $request->validate([
+            'invoice_id' => 'required|integer|exists:invoices,id',
+            'returns' => 'required|array|min:1',
+            'returns.*.item_index' => 'required|integer|min:0',
+            'returns.*.kuantitas' => 'required|integer|min:1',
+            'returns.*.alasan' => 'required|in:Tidak sesuai pesanan,Berubah pikiran,Cacat atau rusak,Lainnya',
+            'returns.*.kondisi' => 'required|in:Layak jual,Perlu pemeriksaan,Rusak',
+            'returns.*.imeis' => 'nullable|array',
+            'returns.*.imeis.*' => 'string|max:100',
+            'returns.*.catatan' => 'nullable|string|max:2000',
+            'tanggal_retur' => 'required|date',
+        ]);
+
+        DB::transaction(function () use ($validated) {
+            $invoice = Invoice::whereKey($validated['invoice_id'])->lockForUpdate()->firstOrFail();
+
+            if (!$invoice->is_locked) {
+                throw ValidationException::withMessages([
+                    'invoice_id' => 'Retur hanya dapat dicatat untuk invoice yang sudah terkunci.',
+                ]);
+            }
+
+            $items = is_array($invoice->items) ? array_values($invoice->items) : [];
+            $previousReturns = ReturBarang::where('invoice_id', $invoice->id)->get();
+            $returnedQuantityByItem = [];
+            $alreadyReturnedImeisByItem = [];
+            foreach ($previousReturns as $previousReturn) {
+                $itemIndex = (int) $previousReturn->item_index;
+                $returnedQuantityByItem[$itemIndex] = ($returnedQuantityByItem[$itemIndex] ?? 0) + (int) $previousReturn->kuantitas;
+                $alreadyReturnedImeisByItem[$itemIndex] = array_merge(
+                    $alreadyReturnedImeisByItem[$itemIndex] ?? [],
+                    array_map('strtolower', $this->parseImeis($previousReturn->detail_imei ?? ''))
+                );
+            }
+
+            $requestedQuantityByItem = [];
+            $requestedImeisByItem = [];
+            foreach ($validated['returns'] as $rowIndex => $returnRow) {
+                $itemIndex = (int) $returnRow['item_index'];
+                $item = $items[$itemIndex] ?? null;
+                if (!is_array($item)) {
+                    throw ValidationException::withMessages([
+                        "returns.{$rowIndex}.item_index" => 'Barang tidak ditemukan pada invoice yang dipilih.',
+                    ]);
+                }
+
+                $details = $this->getInvoiceItemDetails($item);
+                $requestedQuantityByItem[$itemIndex] = ($requestedQuantityByItem[$itemIndex] ?? 0) + (int) $returnRow['kuantitas'];
+                $remaining = max(0, $details['quantity'] - ($returnedQuantityByItem[$itemIndex] ?? 0));
+                if ($requestedQuantityByItem[$itemIndex] > $remaining) {
+                    throw ValidationException::withMessages([
+                        "returns.{$rowIndex}.kuantitas" => "Qty retur melebihi sisa untuk {$details['name']} ({$remaining} unit).",
+                    ]);
+                }
+
+                $returnedImeis = array_values(array_unique(array_map('trim', $returnRow['imeis'] ?? [])));
+                if ($details['imeis']) {
+                    if (count($returnedImeis) !== (int) $returnRow['kuantitas']) {
+                        throw ValidationException::withMessages([
+                            "returns.{$rowIndex}.imeis" => 'Pilih IMEI sebanyak jumlah unit yang diretur.',
+                        ]);
+                    }
+
+                    $uniqueImeis = array_map('strtolower', $returnedImeis);
+                    if (count(array_unique($uniqueImeis)) !== count($uniqueImeis)) {
+                        throw ValidationException::withMessages([
+                            "returns.{$rowIndex}.imeis" => 'IMEI yang dipilih tidak boleh duplikat.',
+                        ]);
+                    }
+
+                    $validImeis = array_map('strtolower', $details['imeis']);
+                    foreach ($returnedImeis as $imei) {
+                        $normalizedImei = strtolower($imei);
+                        if (!in_array($normalizedImei, $validImeis, true)) {
+                            throw ValidationException::withMessages([
+                                "returns.{$rowIndex}.imeis" => "IMEI {$imei} tidak tercatat pada item invoice ini.",
+                            ]);
+                        }
+
+                        if (
+                            in_array($normalizedImei, $alreadyReturnedImeisByItem[$itemIndex] ?? [], true)
+                            || in_array($normalizedImei, $requestedImeisByItem[$itemIndex] ?? [], true)
+                        ) {
+                            throw ValidationException::withMessages([
+                                "returns.{$rowIndex}.imeis" => "IMEI {$imei} sudah dipilih pada retur lain.",
+                            ]);
+                        }
+                    }
+                    $requestedImeisByItem[$itemIndex] = array_merge($requestedImeisByItem[$itemIndex] ?? [], $uniqueImeis);
+                } elseif ($returnedImeis) {
+                    throw ValidationException::withMessages([
+                        "returns.{$rowIndex}.imeis" => 'Invoice ini tidak memiliki IMEI/serial untuk item tersebut.',
+                    ]);
+                }
+
+                $quantity = (int) $returnRow['kuantitas'];
+                $returnCost = $this->calculateReturnCost($invoice, $item, $returnedImeis, $quantity);
+
+                ReturBarang::create([
+                    'invoice_id' => $invoice->id,
+                    'user_id' => Auth::id(),
+                    'item_index' => $itemIndex,
+                    'nama_barang' => $details['name'],
+                    'kuantitas' => $quantity,
+                    'harga_satuan' => $details['price'],
+                    'nilai_retur' => $details['price'] * $quantity,
+                    'nilai_modal' => $returnCost,
+                    'alasan' => $returnRow['alasan'],
+                    'kondisi' => $returnRow['kondisi'],
+                    'detail_imei' => $returnedImeis ? implode("\n", $returnedImeis) : null,
+                    'tanggal_retur' => $validated['tanggal_retur'],
+                    'catatan' => $returnRow['catatan'] ?? null,
+                ]);
+
+                $this->markPurchaseItemsReturned($invoice, $item, $returnedImeis, $quantity);
+            }
+        });
+
+        return redirect()->route('penjualan.retur.index')->with('success', 'Semua barang retur berhasil dicatat. Invoice asli tetap terkunci.');
+    }
+
+    private function getInvoiceItemDetails(array $item): array
+    {
+        $quantity = max(1, (int) ($item['kuantitas'] ?? count($this->getInvoiceItemImeis($item)) ?: 1));
+        $price = $item['harga'] ?? $item['harga_jual'] ?? null;
+        if (!is_numeric($price)) {
+            $price = isset($item['jumlah']) && is_numeric($item['jumlah'])
+                ? (float) $item['jumlah'] / $quantity
+                : 0;
+        }
+
+        return [
+            'name' => $item['nama_barang'] ?? $item['deskripsi'] ?? 'Barang Invoice',
+            'quantity' => $quantity,
+            'price' => (float) $price,
+            'imeis' => $this->getInvoiceItemImeis($item),
+        ];
+    }
+
+    private function markPurchaseItemsReturned(Invoice $invoice, array $item, array $returnedImeis, int $quantity): void
+    {
+        $purchaseIds = array_values(array_unique(array_map('intval', $item['pembelian_ids'] ?? [])));
+        $snapshots = is_array($invoice->pembelian_data) ? $invoice->pembelian_data : [];
+        $itemName = strtolower($item['nama_barang'] ?? $item['deskripsi'] ?? '');
+
+        if (!$purchaseIds) {
+            foreach ($snapshots as $snapshot) {
+                if (
+                    is_array($snapshot)
+                    && strtolower((string) ($snapshot['nama_barang'] ?? '')) === $itemName
+                    && !empty($snapshot['pembelian_id'])
+                ) {
+                    $purchaseIds[] = (int) $snapshot['pembelian_id'];
+                }
+            }
+            $purchaseIds = array_values(array_unique($purchaseIds));
+        }
+
+        if (!$purchaseIds) {
+            return;
+        }
+
+        if ($returnedImeis) {
+            $wantedImeis = array_map('strtolower', $returnedImeis);
+            $purchaseIdsToUpdate = [];
+            foreach ($snapshots as $snapshot) {
+                if (!is_array($snapshot) || !in_array((int) ($snapshot['pembelian_id'] ?? 0), $purchaseIds, true)) {
+                    continue;
+                }
+
+                $snapshotImeis = array_map('strtolower', $this->getInvoiceItemImeis($snapshot));
+                if (array_intersect($wantedImeis, $snapshotImeis)) {
+                    $purchaseIdsToUpdate[] = (int) $snapshot['pembelian_id'];
+                }
+            }
+
+            if (!$purchaseIdsToUpdate) {
+                foreach (Pembelian::whereIn('id', $purchaseIds)->get(['id', 'detail_imei']) as $pembelian) {
+                    $purchaseImeis = array_map('strtolower', $this->parseImeis($pembelian->detail_imei ?? ''));
+                    if (array_intersect($wantedImeis, $purchaseImeis)) {
+                        $purchaseIdsToUpdate[] = $pembelian->id;
+                    }
+                }
+            }
+        } else {
+            $purchaseIdsToUpdate = Pembelian::whereIn('id', $purchaseIds)
+                ->where('status', '!=', 'Retur')
+                ->orderBy('id')
+                ->limit($quantity)
+                ->pluck('id')
+                ->all();
+        }
+
+        if ($purchaseIdsToUpdate) {
+            Pembelian::whereIn('id', array_unique($purchaseIdsToUpdate))->update(['status' => 'Retur']);
+        }
+    }
+
+    private function getInvoiceItemImeis(array $item): array
+    {
+        if (isset($item['imei_list']) && is_array($item['imei_list'])) {
+            return array_values(array_filter(array_map('trim', $item['imei_list'])));
+        }
+
+        return $this->parseImeis(
+            $item['deskripsi_imei'] ?? $item['detail_imei'] ?? $item['imei'] ?? ''
+        );
+    }
+
+    private function calculateReturnCost(Invoice $invoice, array $item, array $returnedImeis, int $quantity): float
+    {
+        $snapshots = is_array($invoice->pembelian_data) ? $invoice->pembelian_data : [];
+        $purchaseIds = array_map('intval', $item['pembelian_ids'] ?? []);
+        $itemName = strtolower($item['nama_barang'] ?? $item['deskripsi'] ?? '');
+        $matchingSnapshots = array_values(array_filter($snapshots, function ($snapshot) use ($purchaseIds, $itemName) {
+            if (!is_array($snapshot)) {
+                return false;
+            }
+
+            if ($purchaseIds && isset($snapshot['pembelian_id'])) {
+                return in_array((int) $snapshot['pembelian_id'], $purchaseIds, true);
+            }
+
+            return strtolower((string) ($snapshot['nama_barang'] ?? '')) === $itemName;
+        }));
+
+        $unitCostByImei = [];
+        $weightedCost = 0.0;
+        $unitCount = 0;
+        foreach ($matchingSnapshots as $snapshot) {
+            $modal = (float) ($snapshot['total_modal'] ?? 0);
+            $imeis = $this->getInvoiceItemImeis($snapshot);
+            $snapshotQuantity = max(1, count($imeis));
+            $weightedCost += $modal * $snapshotQuantity;
+            $unitCount += $snapshotQuantity;
+
+            foreach ($imeis as $imei) {
+                $unitCostByImei[strtolower($imei)] = $modal;
+            }
+        }
+
+        if ($returnedImeis) {
+            $matchedCost = 0.0;
+            foreach ($returnedImeis as $imei) {
+                if (!array_key_exists(strtolower($imei), $unitCostByImei)) {
+                    $matchedCost = 0.0;
+                    break;
+                }
+
+                $matchedCost += $unitCostByImei[strtolower($imei)];
+            }
+
+            if ($matchedCost > 0) {
+                return $matchedCost;
+            }
+        }
+
+        return $unitCount > 0 ? ($weightedCost / $unitCount) * $quantity : 0.0;
+    }
+
+    private function parseImeis(?string $value): array
+    {
+        if (empty($value) || $value === '-') {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $value) ?: [])));
     }
 
     public function detailBarang(Request $request)

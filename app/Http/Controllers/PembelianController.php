@@ -279,7 +279,7 @@ class PembelianController extends Controller
     {
         $search = $request->input('search');
 
-        $pembelians = Pembelian::where('status', 'Selesai')
+        $pembelians = Pembelian::whereIn('status', ['Selesai', 'Retur'])
             ->when($search, function ($query, $search) {
                 return $query->where(function ($q) use ($search) {
                     $q->where('kode_manual', 'like', "%{$search}%")

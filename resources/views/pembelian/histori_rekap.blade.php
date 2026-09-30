@@ -6,7 +6,7 @@
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
     <div>
         <h3 class="fw-bold text-dark mb-0">Histori Rekap Pembelian</h3>
-        <p class="text-muted small mb-0">Arsip data rekap pembelian yang statusnya sudah Selesai.</p>
+        <p class="text-muted small mb-0">Arsip data rekap pembelian yang sudah Selesai atau diproses sebagai Retur.</p>
     </div>
     <div class="d-grid d-sm-flex align-items-center gap-2 w-100 w-md-auto">
         <!-- Tombol Khusus Cek IMEI Duplikat -->
@@ -92,6 +92,9 @@
                         <!-- Kode Sistem & No. Pesanan -->
                         <td>
                             <span class="badge bg-dark mb-1 d-inline-block">{{ $item->kode_otomatis }}</span><br>
+                            @if($item->status === 'Retur')
+                            <span class="badge bg-danger mb-1"><i class="bi bi-arrow-return-left me-1"></i>Retur</span><br>
+                            @endif
                             <small class="text-muted"><i class="bi bi-hash"></i> {{ $item->kode_manual ?? '-' }}</small>
                         </td>
 
@@ -178,7 +181,7 @@
                     <tr>
                         <td colspan="11" class="text-center py-5 text-muted">
                             <i class="bi bi-archive fs-1 d-block mb-2 text-secondary"></i>
-                            Belum ada data rekap pembelian dengan status Selesai.
+                            Belum ada data rekap pembelian berstatus Selesai atau Retur.
                         </td>
                     </tr>
                     @endforelse
@@ -210,6 +213,9 @@
             <div class="d-flex justify-content-between align-items-start mb-2 border-bottom pb-2">
                 <div>
                     <span class="badge bg-dark font-monospace me-1">{{ $item->kode_otomatis }}</span>
+                    @if($item->status === 'Retur')
+                    <span class="badge bg-danger"><i class="bi bi-arrow-return-left me-1"></i>Retur</span>
+                    @endif
                     @if(!empty($item->no_invoice))
                     <span class="badge bg-secondary font-monospace">{{ $item->no_invoice }}</span>
                     @endif
@@ -267,7 +273,7 @@
     @empty
     <div class="card border-0 shadow-sm p-4 text-center text-muted">
         <i class="bi bi-archive fs-1 d-block mb-2 text-secondary"></i>
-        Belum ada data rekap pembelian dengan status Selesai.
+        Belum ada data rekap pembelian berstatus Selesai atau Retur.
     </div>
     @endforelse
 </div>

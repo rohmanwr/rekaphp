@@ -184,6 +184,7 @@
             font-size: 1.2rem;
             line-height: 1.3;
         }
+
     }
 </style>
 
@@ -241,6 +242,7 @@
                     if (is_string($rawItems)) {
                     $rawItems = json_decode($rawItems, true);
                     }
+                    $rawItems = is_array($rawItems) ? array_values($rawItems) : [];
 
                     $sourceItems = !empty($rawPembelianData) && is_array($rawPembelianData)
                     ? $rawPembelianData
@@ -283,6 +285,33 @@
                     }
                     }
 
+                    $matchedInvoiceItemIndex = null;
+                    $fallbackInvoiceItemIndex = null;
+                    $snapshotPurchaseId = (int) ($it['pembelian_id'] ?? 0);
+                    $snapshotPurchaseIds = is_array($it['pembelian_ids'] ?? null) ? array_map('intval', $it['pembelian_ids']) : [];
+                    foreach (is_array($rawItems) ? $rawItems : [] as $invoiceItemIndex => $invoiceLine) {
+                    if (!is_array($invoiceLine)) continue;
+
+                    $invoicePurchaseIds = is_array($invoiceLine['pembelian_ids'] ?? null) ? array_map('intval', $invoiceLine['pembelian_ids']) : [];
+                    if (($snapshotPurchaseId && in_array($snapshotPurchaseId, $invoicePurchaseIds, true))
+                    || ($snapshotPurchaseIds && array_intersect($snapshotPurchaseIds, $invoicePurchaseIds))) {
+                    $matchedInvoiceItemIndex = $invoiceItemIndex;
+                    break;
+                    }
+
+                    $invoiceLineName = strtolower($invoiceLine['nama_barang'] ?? $invoiceLine['deskripsi'] ?? '');
+                    if ($invoiceLineName !== strtolower($namaBarangIt)) continue;
+                    if ($fallbackInvoiceItemIndex === null) $fallbackInvoiceItemIndex = $invoiceItemIndex;
+
+                    $snapshotPrice = $it['harga_jual'] ?? $it['harga'] ?? null;
+                    $invoiceLinePrice = $invoiceLine['harga'] ?? $invoiceLine['harga_jual'] ?? null;
+                    if (is_numeric($snapshotPrice) && is_numeric($invoiceLinePrice) && (float) $snapshotPrice === (float) $invoiceLinePrice) {
+                    $matchedInvoiceItemIndex = $invoiceItemIndex;
+                    break;
+                    }
+                    }
+                    if ($matchedInvoiceItemIndex === null) $matchedInvoiceItemIndex = $fallbackInvoiceItemIndex;
+
                     $modalIt = isset($it['total_modal']) ? (float) $it['total_modal'] : 0;
 
                     if (count($imeis) > 1) {
@@ -293,6 +322,7 @@
                     $totalProfitInvoice += $profitUnit;
 
                     $displayItems[] = [
+                    'invoice_item_index' => $matchedInvoiceItemIndex,
                     'nama_barang' => $namaBarangIt,
                     'nama_device' => $it['nama_device'] ?? null,
                     'nama_alamat' => $it['nama_alamat'] ?? null,
@@ -313,6 +343,7 @@
                     $totalProfitInvoice += $profitIt;
 
                     $displayItems[] = [
+                    'invoice_item_index' => $matchedInvoiceItemIndex,
                     'nama_barang' => $namaBarangIt,
                     'nama_device' => $it['nama_device'] ?? null,
                     'nama_alamat' => $it['nama_alamat'] ?? null,
@@ -327,6 +358,9 @@
                     ];
                     }
                     }
+
+                    $totalModalInvoice = max(0, $totalModalInvoice - (float) ($invoice->retur_total_modal ?? 0));
+                    $totalProfitInvoice -= (float) ($invoice->retur_total_nilai ?? 0) - (float) ($invoice->retur_total_modal ?? 0);
 
                     $statusPayment = strtolower($invoice->status_payment ?? 'belum');
                     @endphp
@@ -371,7 +405,13 @@
                         </td>
 
                         <td class="fw-bold text-secondary" data-label="Total Modal Keseluruhan">Rp {{ number_format($totalModalInvoice, 0, ',', '.') }}</td>
-                        <td class="fw-bold text-success" data-label="Total Tagihan">Rp {{ number_format($invoice->total ?? 0, 0, ',', '.') }}</td>
+                        <td class="fw-bold text-success" data-label="Total Tagihan">
+                            <span>Rp {{ number_format($invoice->total ?? 0, 0, ',', '.') }}</span>
+                            @if(($invoice->retur_total_nilai ?? 0) > 0)
+                            <small class="d-block fw-normal text-danger">Retur: -Rp {{ number_format($invoice->retur_total_nilai, 0, ',', '.') }}</small>
+                            <small class="d-block fw-semibold text-dark">Bersih: Rp {{ number_format(max(0, (float) $invoice->total - (float) $invoice->retur_total_nilai), 0, ',', '.') }}</small>
+                            @endif
+                        </td>
 
                         <!-- TOTAL PROFIT (Hanya bernilai jika status payment 'sudah') -->
                         <td class="fw-bold {{ $statusPayment === 'sudah' ? ($totalProfitInvoice >= 0 ? 'text-primary' : 'text-danger') : 'text-muted' }}" data-label="Total Profit">
@@ -390,6 +430,9 @@
                                 </a>
 
                                 @if($invoice->is_locked)
+                                <a href="{{ route('penjualan.retur.index', ['invoice_id' => $invoice->id]) }}" class="btn btn-sm btn-outline-warning" title="Catat atau lihat retur barang">
+                                    <i class="bi bi-arrow-return-left"></i>
+                                </a>
                                 <span class="badge bg-secondary align-content-center" title="Invoice terkunci">
                                     <i class="bi bi-lock-fill"></i> Terkunci
                                 </span>
@@ -431,11 +474,29 @@
                                         </span>
                                     </div>
 
+                                    @if($invoice->is_locked)
+                                    <div class="return-selection-panel d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 border rounded p-3 mb-3 bg-light"
+                                        data-invoice-id="{{ $invoice->id }}"
+                                        data-return-url="{{ route('penjualan.retur.index', ['invoice_id' => $invoice->id]) }}">
+                                        <div>
+                                            <div class="fw-bold"><i class="bi bi-check2-square text-success me-1"></i>Pilih unit yang akan diretur</div>
+                                            <small class="text-muted" data-selection-message>Pilih satu atau beberapa unit dari barang yang sama.</small>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="badge bg-white text-dark border" data-selection-count>0 unit dipilih</span>
+                                            <button type="button" class="btn btn-sm btn-success fw-semibold" data-process-return disabled>
+                                                Proses retur
+                                            </button>
+                                        </div>
+                                    </div>
+                                    @endif
+
                                     <div class="table-responsive">
                                         <table class="table table-sm table-bordered align-middle mb-0">
                                             <thead class="table-light">
                                                 <tr>
                                                     <th class="text-center" style="width: 40px;">No</th>
+                                                    <th class="text-center" style="width: 88px;">Retur</th>
                                                     <th>Barang & Toko</th>
                                                     <th>IMEI / Serial</th>
                                                     <th>Via</th>
@@ -447,9 +508,41 @@
                                                 </tr>
                                             </thead>
                                             <tbody>
+                                                @php $displayUnitCounters = []; @endphp
                                                 @forelse($displayItems as $pIdx => $pItem)
-                                                <tr>
+                                                @php
+                                                $invoiceItemIndex = $pItem['invoice_item_index'] ?? null;
+                                                $unitImei = $pItem['detail_imei'] ?? '-';
+                                                $lineReturns = $invoiceItemIndex !== null ? $invoice->returns->where('item_index', $invoiceItemIndex) : collect();
+                                                $lineReturnedQuantity = (int) $lineReturns->sum('kuantitas');
+                                                $lineReturnedImeis = [];
+                                                foreach ($lineReturns as $lineReturn) {
+                                                $lineImeis = preg_split('/[\r\n,]+/', $lineReturn->detail_imei ?? '') ?: [];
+                                                $lineImeis = array_values(array_filter(array_map('trim', $lineImeis)));
+                                                $lineReturnedImeis = array_merge($lineReturnedImeis, array_map('strtolower', $lineImeis));
+                                                }
+                                                $unitPosition = $invoiceItemIndex !== null ? ($displayUnitCounters[$invoiceItemIndex] ?? 0) : 0;
+                                                if ($invoiceItemIndex !== null) $displayUnitCounters[$invoiceItemIndex] = $unitPosition + 1;
+                                                $unitIsReturned = $unitImei !== '-'
+                                                ? (in_array(strtolower($unitImei), $lineReturnedImeis, true) || (count($lineReturnedImeis) === 0 && $unitPosition < $lineReturnedQuantity))
+                                                    : $unitPosition < $lineReturnedQuantity;
+                                                    @endphp
+                                                    <tr>
                                                     <td class="text-center text-muted">{{ $pIdx + 1 }}</td>
+                                                    <td class="text-center">
+                                                        @if($invoice->is_locked && $invoiceItemIndex !== null)
+                                                        <label class="d-inline-flex align-items-center gap-1 small {{ $unitIsReturned ? 'text-success' : 'text-primary' }}">
+                                                            <input type="checkbox" class="form-check-input m-0 return-select-checkbox" @checked($unitIsReturned) @disabled($unitIsReturned)
+                                                                data-invoice-id="{{ $invoice->id }}"
+                                                                data-item-index="{{ $invoiceItemIndex }}"
+                                                                data-imei="{{ $unitImei !== '-' ? $unitImei : '' }}"
+                                                                aria-label="{{ $unitIsReturned ? 'IMEI ' . $unitImei . ' sudah diretur' : ($unitImei !== '-' ? 'Pilih IMEI ' . $unitImei . ' untuk retur' : 'Pilih unit untuk retur') }}">
+                                                            <span>{{ $unitIsReturned ? 'Diretur' : 'Pilih' }}</span>
+                                                        </label>
+                                                        @else
+                                                        <span class="text-muted">-</span>
+                                                        @endif
+                                                    </td>
                                                     <td>
                                                         <strong>{{ $pItem['nama_barang'] }}</strong>
                                                         @if(!empty($pItem['nama_device']))
@@ -503,29 +596,29 @@
                                                         <span class="text-muted small">-</span>
                                                         @endif
                                                     </td>
-                                                </tr>
-                                                @empty
-                                                <tr>
-                                                    <td colspan="9" class="text-center text-muted py-2">Tidak ada rincian barang.</td>
-                                                </tr>
-                                                @endforelse
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        </td>
                     </tr>
-
                     @empty
-                    <tr class="invoice-empty-row">
-                        <td colspan="10" class="text-center py-4 text-muted">Belum ada histori penjualan.</td>
+                    <tr>
+                        <td colspan="10" class="text-center text-muted py-2">Tidak ada rincian barang.</td>
                     </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </div>
+</div>
+</td>
+</tr>
+
+@empty
+<tr class="invoice-empty-row">
+    <td colspan="10" class="text-center py-4 text-muted">Belum ada histori penjualan.</td>
+</tr>
+@endforelse
+</tbody>
+</table>
+</div>
+</div>
 </div>
 
 <!-- CONTAINER MODAL HAPUS INVOICE (DILUAR TABLE AGAR TIDAK TERJADI BREAKDOWN HTML) -->
@@ -566,5 +659,61 @@
 </div>
 @endif
 @endforeach
+
+<script>
+    (() => {
+        const checkboxes = Array.from(document.querySelectorAll('.return-select-checkbox'));
+
+        document.querySelectorAll('.return-selection-panel').forEach(panel => {
+            const invoiceId = panel.dataset.invoiceId;
+            const invoiceCheckboxes = checkboxes.filter(checkbox => checkbox.dataset.invoiceId === invoiceId);
+            const processButton = panel.querySelector('[data-process-return]');
+            const countLabel = panel.querySelector('[data-selection-count]');
+            const message = panel.querySelector('[data-selection-message]');
+
+            const selectedUnits = () => invoiceCheckboxes.filter(checkbox => checkbox.checked && !checkbox.disabled);
+
+            function refreshSelection() {
+                const selected = selectedUnits();
+                countLabel.textContent = `${selected.length} unit dipilih`;
+                processButton.disabled = selected.length === 0;
+                processButton.textContent = selected.length ? `Proses retur (${selected.length})` : 'Proses retur';
+
+                if (selected.length === 0) {
+                    message.textContent = 'Pilih satu atau beberapa unit dari barang yang sama.';
+                }
+            }
+
+            invoiceCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', () => {
+                    const selected = selectedUnits();
+                    const selectedLine = selected[0]?.dataset.itemIndex;
+                    if (checkbox.checked && selected.some(unit => unit.dataset.itemIndex !== selectedLine)) {
+                        checkbox.checked = false;
+                        message.textContent = 'Satu pengajuan hanya untuk satu jenis barang. Hapus pilihan sebelumnya untuk mengganti barang.';
+                        refreshSelection();
+                        return;
+                    }
+
+                    refreshSelection();
+                });
+            });
+
+            processButton.addEventListener('click', () => {
+                const selected = selectedUnits();
+                if (!selected.length) return;
+
+                const target = new URL(panel.dataset.returnUrl, window.location.href);
+                target.searchParams.set('item_index', selected[0].dataset.itemIndex);
+                target.searchParams.set('kuantitas', String(selected.length));
+                const imeis = selected.map(unit => unit.dataset.imei).filter(Boolean);
+                if (imeis.length) target.searchParams.set('detail_imei', imeis.join('\n'));
+                window.location.assign(target.toString());
+            });
+
+            refreshSelection();
+        });
+    })();
+</script>
 
 @endsection

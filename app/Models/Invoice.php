@@ -34,6 +34,11 @@ class Invoice extends Model
         'is_locked' => 'boolean',
     ];
 
+    public function returns()
+    {
+        return $this->hasMany(ReturBarang::class);
+    }
+
     public static function isLockedForPurchase(Pembelian $pembelian): bool
     {
         if (!empty($pembelian->no_invoice) && static::where('referensi', $pembelian->no_invoice)->where('is_locked', true)->exists()) {

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Pembelian;
 use App\Models\Invoice;
 use App\Models\Keuangan;
+use App\Models\ReturBarang;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -50,8 +51,13 @@ class RekapController extends Controller
         // C. TOTAL PENJUALAN (Dari Tagihan Histori Penjualan / Invoices)
         // ==========================================================
         if (!empty($startDatePenjualan) && !empty($endDatePenjualan)) {
-            $queryPenjualan = Invoice::whereBetween('tanggal', [$startDatePenjualan, $endDatePenjualan]);
-            $totalPenjualan = $queryPenjualan->sum('total');
+            $invoicesPenjualan = Invoice::withSum('returns as retur_total_nilai', 'nilai_retur')
+                ->whereBetween('tanggal', [$startDatePenjualan, $endDatePenjualan])
+                ->get();
+            $totalPenjualan = $invoicesPenjualan->sum(fn($invoice) => max(
+                0,
+                (float) $invoice->total - (float) ($invoice->retur_total_nilai ?? 0)
+            ));
         } else {
             $totalPenjualan = 0; // Kembali ke 0 jika filter belum diisi / di-reset
         }
@@ -73,6 +79,11 @@ class RekapController extends Controller
                     }
                 }
             }
+
+            $returnedProfit = ReturBarang::whereHas('invoice', function ($query) use ($startDateProfit, $endDateProfit) {
+                $query->whereBetween('tanggal', [$startDateProfit, $endDateProfit]);
+            })->get()->sum(fn($return) => (float) $return->nilai_retur - (float) $return->nilai_modal);
+            $totalProfit -= $returnedProfit;
         } else {
             $totalProfit = 0; // Kembali ke 0 jika filter belum diisi / di-reset
         }
