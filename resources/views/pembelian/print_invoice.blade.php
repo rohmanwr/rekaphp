@@ -61,7 +61,7 @@
         <!-- Tabel Item Barang -->
         <div class="table-responsive mb-4">
             <table class="table align-middle mb-0 border">
-                <thead class="table-dark" style="background-color: #2c3e50 !important; -webkit-print-color-adjust: exact;">
+                <thead class="table-dark" style="background-color: #2c3e50 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
                     <tr class="small text-uppercase text-white">
                         <th class="py-3 px-3" style="width: 45%;">Nama Barang</th>
                         <th class="py-3 px-3 text-center" style="width: 15%;">Qty</th>
@@ -154,6 +154,83 @@
         min-height: 297mm;
         margin: 0 auto;
         box-sizing: border-box;
+    }
+
+    @media screen and (max-width: 767.98px) {
+        .invoice-container {
+            width: 100%;
+            min-height: 0;
+            padding: 1rem !important;
+        }
+
+        .invoice-container>.row>[class*="col-"] {
+            width: 100%;
+            text-align: left !important;
+        }
+
+        .invoice-container>.row>[class*="col-"]+[class*="col-"] {
+            margin-top: 1rem;
+        }
+
+        .invoice-container table {
+            font-size: 0.75rem;
+        }
+
+        .invoice-container .table th,
+        .invoice-container .table td {
+            padding: 0.45rem 0.3rem !important;
+            overflow-wrap: anywhere;
+        }
+
+        .invoice-container .table th:nth-child(1) {
+            width: 34% !important;
+        }
+
+        .invoice-container .table th:nth-child(2) {
+            width: 10% !important;
+        }
+
+        .invoice-container .table th:nth-child(3) {
+            width: 27% !important;
+        }
+
+        .invoice-container .table th:nth-child(4) {
+            width: 29% !important;
+        }
+
+        .invoice-container .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .invoice-container .table-responsive table {
+            min-width: 0;
+            table-layout: fixed;
+        }
+
+        .invoice-container .table-responsive td[colspan="4"]>div {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .invoice-container .table-responsive td[colspan="4"]>div>div {
+            white-space: normal !important;
+            overflow-wrap: anywhere;
+        }
+
+        .container.my-4 {
+            margin-top: 0.75rem !important;
+            margin-bottom: 0.75rem !important;
+        }
+
+        .container.my-4>.d-flex {
+            gap: 0.5rem;
+            margin-bottom: 0.75rem !important;
+        }
+
+        .container.my-4>.d-flex .btn {
+            padding: 0.5rem;
+            font-size: 0.8rem;
+        }
     }
 
     @media print {
