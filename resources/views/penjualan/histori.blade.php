@@ -177,7 +177,156 @@
         }
 
         .histori-invoice-table tr.invoice-detail-row .collapse {
-            padding: 10px !important;
+            padding: 8px !important;
+        }
+
+        .invoice-detail-card {
+            min-width: 0;
+            padding: 12px !important;
+        }
+
+        .invoice-detail-header {
+            align-items: flex-start !important;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .invoice-detail-header h6 {
+            line-height: 1.4;
+            overflow-wrap: anywhere;
+        }
+
+        .invoice-detail-header .badge {
+            max-width: 100%;
+            white-space: normal;
+            text-align: left;
+        }
+
+        .return-selection-panel>.d-flex {
+            width: 100%;
+            flex-wrap: wrap;
+            justify-content: space-between;
+        }
+
+        .invoice-detail-row .table-responsive {
+            overflow: visible;
+        }
+
+        .invoice-detail-table,
+        .invoice-detail-table tbody {
+            display: block;
+            width: 100%;
+        }
+
+        .invoice-detail-table thead {
+            display: none;
+        }
+
+        .invoice-detail-table tr.invoice-item-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            grid-template-areas:
+                "product product"
+                "imei imei"
+                "via date"
+                "modal price"
+                "profit profit"
+                "return attachment";
+            margin: 0 0 10px;
+            overflow: hidden;
+            border: 1px solid #dce2e6;
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .invoice-detail-table tr.invoice-item-row>td {
+            display: flex;
+            min-width: 0;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
+            padding: 9px 8px !important;
+            border: 0 !important;
+            border-right: 1px solid #dce2e6 !important;
+            border-bottom: 1px solid #dce2e6 !important;
+            overflow-wrap: anywhere;
+            white-space: normal;
+        }
+
+        .invoice-detail-table tr.invoice-item-row>td::before {
+            content: attr(data-label);
+            color: #6c757d;
+            font-size: .66rem;
+            font-weight: 700;
+            line-height: 1.2;
+            text-transform: uppercase;
+        }
+
+        .invoice-detail-table tr.invoice-item-row>td:nth-child(1) {
+            display: none;
+        }
+
+        .invoice-detail-table tr.invoice-item-row>td:nth-child(2) {
+            grid-area: return;
+        }
+
+        .invoice-detail-table tr.invoice-item-row>td:nth-child(3) {
+            grid-area: product;
+            border-right: 0 !important;
+        }
+
+        .invoice-detail-table tr.invoice-item-row>td:nth-child(4) {
+            grid-area: imei;
+            border-right: 0 !important;
+        }
+
+        .invoice-detail-table tr.invoice-item-row>td:nth-child(5) {
+            grid-area: via;
+        }
+
+        .invoice-detail-table tr.invoice-item-row>td:nth-child(6) {
+            grid-area: date;
+            border-right: 0 !important;
+        }
+
+        .invoice-detail-table tr.invoice-item-row>td:nth-child(7) {
+            grid-area: modal;
+        }
+
+        .invoice-detail-table tr.invoice-item-row>td:nth-child(8) {
+            grid-area: price;
+            border-right: 0 !important;
+        }
+
+        .invoice-detail-table tr.invoice-item-row>td:nth-child(9) {
+            grid-area: profit;
+            border-right: 0 !important;
+            background: #f5f7f8;
+        }
+
+        .invoice-detail-table tr.invoice-item-row>td:nth-child(10) {
+            grid-area: attachment;
+            border-right: 0 !important;
+        }
+
+        .invoice-detail-table tr.invoice-item-row>td:nth-child(2) label {
+            flex-wrap: wrap;
+        }
+
+        .invoice-detail-table tr.invoice-item-row>td:nth-child(10) .d-flex {
+            flex-wrap: wrap;
+        }
+
+        .invoice-detail-table tr.invoice-item-empty-row {
+            display: block;
+        }
+
+        .invoice-detail-table tr.invoice-item-empty-row>td {
+            display: block;
+            width: 100%;
+            padding: 12px !important;
+            border: 0 !important;
+            text-align: center;
         }
 
         .histori-page-title {
@@ -463,8 +612,8 @@
                     <tr class="bg-light invoice-detail-row">
                         <td colspan="10" class="p-0 border-0">
                             <div class="collapse p-3" id="collapseInvoice{{ $invoice->id }}">
-                                <div class="card card-body border bg-white shadow-sm mb-2">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div class="card card-body border bg-white shadow-sm mb-2 invoice-detail-card">
+                                    <div class="d-flex justify-content-between align-items-center mb-3 invoice-detail-header">
                                         <h6 class="fw-bold text-secondary mb-0"><i class="bi bi-box-seam me-1"></i> Rincian Barang Terjual Per Unit (Invoice: {{ $invoice->referensi }})</h6>
                                         <span class="badge bg-light text-dark border fw-bold fs-6">
                                             Total Profit Realized:
@@ -492,7 +641,7 @@
                                     @endif
 
                                     <div class="table-responsive">
-                                        <table class="table table-sm table-bordered align-middle mb-0">
+                                        <table class="table table-sm table-bordered align-middle mb-0 invoice-detail-table">
                                             <thead class="table-light">
                                                 <tr>
                                                     <th class="text-center" style="width: 40px;">No</th>
@@ -527,9 +676,9 @@
                                                 ? (in_array(strtolower($unitImei), $lineReturnedImeis, true) || (count($lineReturnedImeis) === 0 && $unitPosition < $lineReturnedQuantity))
                                                     : $unitPosition < $lineReturnedQuantity;
                                                     @endphp
-                                                    <tr>
-                                                    <td class="text-center text-muted">{{ $pIdx + 1 }}</td>
-                                                    <td class="text-center">
+                                                    <tr class="invoice-item-row">
+                                                    <td class="text-center text-muted" data-label="No">{{ $pIdx + 1 }}</td>
+                                                    <td class="text-center" data-label="Status Retur">
                                                         @if($invoice->is_locked && $invoiceItemIndex !== null)
                                                         <label class="d-inline-flex align-items-center gap-1 small {{ $unitIsReturned ? 'text-success' : 'text-primary' }}">
                                                             <input type="checkbox" class="form-check-input m-0 return-select-checkbox" @checked($unitIsReturned) @disabled($unitIsReturned)
@@ -543,7 +692,7 @@
                                                         <span class="text-muted">-</span>
                                                         @endif
                                                     </td>
-                                                    <td>
+                                                    <td data-label="Barang & Toko">
                                                         <strong>{{ $pItem['nama_barang'] }}</strong>
                                                         @if(!empty($pItem['nama_device']))
                                                         <br><small class="text-primary fw-semibold"><i class="bi bi-phone"></i> {{ $pItem['nama_device'] }}</small>
@@ -553,7 +702,7 @@
                                                         <br><small class="text-danger"><i class="bi bi-geo-alt"></i> {{ $pItem['nama_alamat'] }}</small>
                                                         @endif
                                                     </td>
-                                                    <td>
+                                                    <td data-label="IMEI / Serial">
                                                         @if(!empty($pItem['detail_imei']) && $pItem['detail_imei'] !== '-')
                                                         <span style="font-family: monospace; font-size: 0.8rem;" class="text-dark bg-light px-2 py-1 rounded border d-inline-block">
                                                             {{ $pItem['detail_imei'] }}
@@ -562,7 +711,7 @@
                                                         <span class="text-muted small">-</span>
                                                         @endif
                                                     </td>
-                                                    <td>
+                                                    <td data-label="Via">
                                                         @php
                                                         $viaVal = $pItem['via'] ?? '-';
                                                         $badgeColor = match($viaVal) {
@@ -575,13 +724,13 @@
                                                         @endphp
                                                         <span class="badge {{ $badgeColor }}">{{ $viaVal }}</span>
                                                     </td>
-                                                    <td>{{ isset($pItem['tanggal_beli']) ? \Carbon\Carbon::parse($pItem['tanggal_beli'])->format('d/m/Y') : '-' }}</td>
-                                                    <td class="fw-bold text-secondary">Rp {{ number_format($pItem['total_modal'], 0, ',', '.') }}</td>
-                                                    <td class="fw-bold text-success">Rp {{ number_format($pItem['harga_jual'], 0, ',', '.') }}</td>
-                                                    <td class="fw-bold {{ $statusPayment === 'sudah' ? 'text-primary' : 'text-muted' }}">
+                                                    <td data-label="Tgl Beli">{{ isset($pItem['tanggal_beli']) ? \Carbon\Carbon::parse($pItem['tanggal_beli'])->format('d/m/Y') : '-' }}</td>
+                                                    <td class="fw-bold text-secondary" data-label="Total Modal">Rp {{ number_format($pItem['total_modal'], 0, ',', '.') }}</td>
+                                                    <td class="fw-bold text-success" data-label="Harga Jual">Rp {{ number_format($pItem['harga_jual'], 0, ',', '.') }}</td>
+                                                    <td class="fw-bold {{ $statusPayment === 'sudah' ? 'text-primary' : 'text-muted' }}" data-label="Total Profit">
                                                         Rp {{ number_format($statusPayment === 'sudah' ? $pItem['total_profit'] : 0, 0, ',', '.') }}
                                                     </td>
-                                                    <td>
+                                                    <td data-label="Lampiran">
                                                         @if(!empty($pItem['file_lampiran']) && is_array($pItem['file_lampiran']) && count($pItem['file_lampiran']) > 0)
                                                         <div class="d-flex flex-wrap gap-1">
                                                             @foreach($pItem['file_lampiran'] as $idx => $filePath)
@@ -598,7 +747,7 @@
                                                     </td>
                     </tr>
                     @empty
-                    <tr>
+                    <tr class="invoice-item-empty-row">
                         <td colspan="10" class="text-center text-muted py-2">Tidak ada rincian barang.</td>
                     </tr>
                     @endforelse

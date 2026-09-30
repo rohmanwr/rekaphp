@@ -85,11 +85,14 @@
             padding: 12px 10px;
             margin: 0;
             -webkit-box-flex: 1;
-            -ms-flex: 1;
-            flex: 1;
+            -ms-flex: 1 1 auto;
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-x: hidden;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
-            /* Smooth Scroll di HP */
+            overscroll-behavior-y: contain;
+            touch-action: pan-y;
         }
 
         #sidebar ul li.sidebar-heading {
@@ -200,11 +203,22 @@
                 position: fixed;
                 top: 0;
                 left: -270px;
-                height: 100%;
                 height: 100vh;
+                height: 100dvh;
+                max-height: 100dvh;
+                overflow: hidden;
+                padding-top: env(safe-area-inset-top);
+                padding-bottom: env(safe-area-inset-bottom);
                 box-shadow: none;
                 -webkit-transform: translateX(0);
                 transform: translateX(0);
+            }
+
+            #sidebar .sidebar-header,
+            #sidebar>.p-3 {
+                -webkit-box-flex: 0;
+                -ms-flex: 0 0 auto;
+                flex: 0 0 auto;
             }
 
             #sidebar.active {
