@@ -466,7 +466,7 @@
                         </div>
                         <div class="col-md-6">
                             <div class="form-check mb-1"><input class="form-check-input bulk-field-toggle" type="checkbox" name="fields[]" value="total_modal" data-target="bulkTotalModal" id="bulkFieldModal"><label class="form-check-label fw-semibold" for="bulkFieldModal">Total Modal</label></div>
-                            <input type="number" name="total_modal" id="bulkTotalModal" class="form-control" min="0" step="1" placeholder="Rp" disabled>
+                            <input type="text" name="total_modal" id="bulkTotalModal" class="form-control input-rupiah" inputmode="numeric" placeholder="Misal: 8.500.000" autocomplete="off" disabled>
                             <small class="text-muted">Untuk Titipan tanpa untung, modal tiap barang mengikuti harga master.</small>
                         </div>
                     </div>
@@ -1315,6 +1315,13 @@
             if (!this.querySelector('.bulk-field-toggle:checked')) {
                 event.preventDefault();
                 alert('Pilih minimal satu field yang ingin diubah.');
+                return;
+            }
+
+            const amountToggle = this.querySelector('.bulk-field-toggle[value="total_modal"]');
+            const amountInput = document.getElementById('bulkTotalModal');
+            if (amountToggle.checked) {
+                amountInput.value = amountInput.value.replace(/\D/g, '');
             }
         });
 

@@ -13,6 +13,37 @@ class ReturnTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_bulk_purchase_store_generates_unique_auto_codes(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $items = [];
+        for ($i = 0; $i < 1000; $i++) {
+            $items[] = [
+                'kode_manual' => 'BULK-' . ($i + 1),
+                'nama_alamat' => 'Alamat ' . ($i + 1),
+                'nama_barang' => 'Iphone 15 128 GB BLUE',
+                'nama_toko' => 'Toko Uji',
+                'via' => 'COD',
+                'nama_trader' => 'Traders ' . ($i + 1),
+                'tanggal_beli' => '2026-10-01',
+                'total_modal' => '12100000',
+                'titipan' => 'Tidak',
+                'status' => 'Belum Ready',
+                'detail_imei' => '765756756',
+                'qty' => 1,
+            ];
+        }
+
+        $response = $this->actingAs($user)->post(route('pembelian.store'), [
+            'items' => $items,
+        ]);
+
+        $response->assertRedirect(route('pembelian.index'));
+        $this->assertSame(1000, Pembelian::count());
+        $this->assertCount(1000, Pembelian::query()->pluck('kode_otomatis')->unique()->all());
+    }
+
     public function test_return_page_displays_locked_invoice_items(): void
     {
         $user = User::factory()->create(['role' => 'admin']);

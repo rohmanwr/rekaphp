@@ -74,8 +74,9 @@
                     @php
                     // Memecah teks deskripsi imei kembali menjadi array bersih
                     $imeis = [];
-                    if (!empty($item['deskripsi_imei']) && $item['deskripsi_imei'] !== '-') {
-                    $cleaned = str_replace(["\r", ","], "\n", $item['deskripsi_imei']);
+                    $deskripsiImei = trim((string) ($item['deskripsi_imei'] ?? ''));
+                    if ($deskripsiImei !== '' && $deskripsiImei !== '-') {
+                    $cleaned = str_replace(["\r", ","], "\n", $deskripsiImei);
                     $lines = explode("\n", $cleaned);
                     foreach ($lines as $line) {
                     $trimmed = trim($line);
@@ -83,6 +84,9 @@
                     $imeis[] = $trimmed;
                     }
                     }
+                    }
+                    if (empty($imeis)) {
+                    $imeis = ['-'];
                     }
                     @endphp
                     <!-- Baris 1: Nama Barang, Qty, Harga, Total Harga -->
@@ -93,17 +97,15 @@
                         <td class="text-end px-3 py-2 fw-bold">Rp {{ number_format($item['jumlah'], 0, ',', '.') }}</td>
                     </tr>
                     <!-- Baris 2: Detail IMEI di dalam tabel yang sama (Maks 5 Kolom) -->
-                    @if(count($imeis) > 0)
                     <tr>
                         <td colspan="4" class="px-3 pb-3 pt-1 bg-light border-top-0">
-                            <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px 12px; font-family: monospace; font-size: 0.8rem;" class="text-secondary">
+                            <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px 12px; font-family: monospace; font-size: 0.8rem; line-height: 1.5;" class="text-secondary">
                                 @foreach($imeis as $imei)
-                                <div style="white-space: nowrap;">{{ $imei }}</div>
+                                <div style="white-space: nowrap; overflow-wrap: anywhere;">{{ $imei }}</div>
                                 @endforeach
                             </div>
                         </td>
                     </tr>
-                    @endif
                     @endforeach
                 </tbody>
             </table>

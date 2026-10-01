@@ -151,7 +151,7 @@ class PembelianController extends Controller
                     'titipan'       => $titipan,
                     'status'        => $item['status'] ?? 'Belum Ready',
                     'detail_imei'   => $item['detail_imei'] ?? null,
-                    'kode_otomatis' => 'TRX-' . date('Ymd') . '-' . rand(100, 999),
+                    'kode_otomatis' => $this->generateUniqueKodeOtomatis(),
                     'file_lampiran' => !empty($files) ? $files : null,
                 ]);
                 $totalTercatat++;
@@ -159,6 +159,28 @@ class PembelianController extends Controller
         }
 
         return redirect()->route('pembelian.index')->with('success', "Berhasil mencatat {$totalTercatat} data pembelian baru!");
+    }
+
+    private function generateUniqueKodeOtomatis(): string
+    {
+        $prefix = 'TRX-' . now()->format('Ymd') . '-';
+
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $suffix = str_pad((string) random_int(1000, 999999), 6, '0', STR_PAD_LEFT);
+            $kode = $prefix . $suffix;
+
+            if (!Pembelian::where('kode_otomatis', $kode)->exists()) {
+                return $kode;
+            }
+        }
+
+        $fallbackKode = $prefix . now()->format('His') . '-' . random_int(1000, 9999);
+
+        if (!Pembelian::where('kode_otomatis', $fallbackKode)->exists()) {
+            return $fallbackKode;
+        }
+
+        throw new \RuntimeException('Gagal menghasilkan kode otomatis pembelian yang unik.');
     }
 
     public function updateStatus(Request $request, $id)
@@ -734,7 +756,7 @@ class PembelianController extends Controller
             }
 
             if (empty($imeis)) {
-                $imeis = [];
+                $imeis = ['-'];
             }
 
             if (!isset($groupedItems[$groupKey])) {
@@ -742,14 +764,14 @@ class PembelianController extends Controller
                     'pembelian_ids' => [$item->id],
                     'nama_barang'   => $namaBarang,
                     'imei_list'     => $imeis,
-                    'kuantitas'     => count($imeis) > 0 ? count($imeis) : 1,
+                    'kuantitas'     => count($imeis),
                     'harga'         => $hargaJual,
                 ];
                 $groupedItems[$groupKey]['jumlah'] = $groupedItems[$groupKey]['kuantitas'] * $hargaJual;
             } else {
                 $groupedItems[$groupKey]['pembelian_ids'][] = $item->id;
                 $groupedItems[$groupKey]['imei_list']     = array_merge($groupedItems[$groupKey]['imei_list'], $imeis);
-                $groupedItems[$groupKey]['kuantitas']     = count($groupedItems[$groupKey]['imei_list']) > 0 ? count($groupedItems[$groupKey]['imei_list']) : ($groupedItems[$groupKey]['kuantitas'] + 1);
+                $groupedItems[$groupKey]['kuantitas']     = count($groupedItems[$groupKey]['imei_list']);
                 $groupedItems[$groupKey]['jumlah']        = $groupedItems[$groupKey]['kuantitas'] * $hargaJual;
             }
         }
