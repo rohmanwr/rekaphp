@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Barang;
+use App\Models\Invoice;
+use App\Models\Pembelian;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class BarangController extends Controller
 {
@@ -46,13 +49,84 @@ class BarangController extends Controller
             'harga_jual'  => 'required',
         ]);
 
-        $barang->update([
-            'kode_barang' => $request->kode_barang,
-            'nama_barang' => $request->nama_barang,
-            'harga_jual'  => str_replace('.', '', $request->harga_jual), // Bersihkan titik format rupiah
-        ]);
+        $namaBarangSebelumnya = $barang->nama_barang;
+        $namaBarangBaru = $request->nama_barang;
+        $hargaJualBaru = (int) str_replace('.', '', $request->harga_jual);
+        $jumlahDisinkronkan = 0;
+        $jumlahTerkunci = 0;
 
-        return redirect()->route('barang.index')->with('success', 'Data barang berhasil diperbarui!');
+        DB::transaction(function () use ($barang, $request, $namaBarangSebelumnya, $namaBarangBaru, $hargaJualBaru, &$jumlahDisinkronkan, &$jumlahTerkunci) {
+            $barang->update([
+                'kode_barang' => $request->kode_barang,
+                'nama_barang' => $namaBarangBaru,
+                'harga_jual'  => $hargaJualBaru,
+            ]);
+
+            if ($namaBarangSebelumnya !== $namaBarangBaru) {
+                return;
+            }
+
+            $pembelians = Pembelian::where('nama_barang', $namaBarangBaru)
+                ->where('titipan', 'Ya, (tidak ambil untung)')
+                ->get();
+            $pembelianIds = [];
+
+            foreach ($pembelians as $pembelian) {
+                if (Invoice::isLockedForPurchase($pembelian)) {
+                    $jumlahTerkunci++;
+                    continue;
+                }
+
+                DB::table('pembelians')->where('id', $pembelian->id)->update([
+                    'total_modal' => $hargaJualBaru,
+                    'updated_at' => DB::raw('updated_at'),
+                ]);
+                $pembelianIds[] = $pembelian->id;
+            }
+
+            if (empty($pembelianIds)) {
+                return;
+            }
+
+            foreach (DB::table('invoices')->whereNotNull('pembelian_data')->get(['id', 'pembelian_data']) as $invoice) {
+                $snapshotItems = is_array($invoice->pembelian_data)
+                    ? $invoice->pembelian_data
+                    : json_decode($invoice->pembelian_data ?? '[]', true);
+                if (!is_array($snapshotItems)) {
+                    continue;
+                }
+
+                $changed = false;
+                foreach ($snapshotItems as &$snapshotItem) {
+                    if (!in_array((int) ($snapshotItem['pembelian_id'] ?? 0), $pembelianIds, true)) {
+                        continue;
+                    }
+
+                    $snapshotItem['total_modal'] = $hargaJualBaru;
+                    $snapshotItem['total_profit'] = (float) ($snapshotItem['harga_jual'] ?? 0) - $hargaJualBaru;
+                    $changed = true;
+                }
+                unset($snapshotItem);
+
+                if ($changed) {
+                    DB::table('invoices')->where('id', $invoice->id)->update([
+                        'pembelian_data' => json_encode($snapshotItems),
+                    ]);
+                }
+            }
+
+            $jumlahDisinkronkan = count($pembelianIds);
+        });
+
+        $message = 'Data barang berhasil diperbarui.';
+        if ($jumlahDisinkronkan > 0) {
+            $message .= " Total modal {$jumlahDisinkronkan} barang titipan ikut disesuaikan dengan harga master.";
+        }
+        if ($jumlahTerkunci > 0) {
+            $message .= " {$jumlahTerkunci} barang terkunci invoice tidak diubah.";
+        }
+
+        return redirect()->route('barang.index')->with('success', $message);
     }
 
     public function destroy($id)

@@ -221,6 +221,7 @@
                                 'Shopee' => 'bg-warning text-dark',
                                 'Lazada' => 'bg-primary',
                                 'TikTok' => 'bg-dark',
+                                'COD' => 'bg-dark',
                                 default => 'bg-secondary'
                                 };
                                 @endphp
@@ -308,6 +309,7 @@
         'Shopee' => 'bg-warning text-dark',
         'Lazada' => 'bg-primary',
         'TikTok' => 'bg-dark',
+        'COD' => 'bg-dark',
         default => 'bg-secondary'
         };
         @endphp
@@ -537,7 +539,7 @@
                         </div>
 
                         @php
-                        $isCustomVia = !in_array($item->via, ['Tokopedia', 'Shopee', 'Lazada', 'TikTok']);
+                        $isCustomVia = !in_array($item->via, ['Tokopedia', 'Shopee', 'Lazada', 'TikTok', 'COD']);
                         @endphp
                         <div class="col-md-6">
                             <label class="form-label">Transaksi Beli Via</label>
