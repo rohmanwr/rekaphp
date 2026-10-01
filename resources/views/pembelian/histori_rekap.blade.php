@@ -102,6 +102,8 @@
                         <td>
                             <strong>{{ $item->nama_barang }}</strong><br>
                             <small class="text-muted"><i class="bi bi-shop"></i> {{ $item->nama_toko }}</small><br>
+                            <small class="text-muted">Titipan: {{ $item->titipan ?? 'Tidak' }}</small><br>
+                            <small class="text-muted">Trader: {{ $item->nama_trader ?: '-' }}</small><br>
                             <small class="text-danger"><i class="bi bi-geo-alt"></i> {{ $item->nama_alamat ?? '-' }}</small>
                         </td>
 
@@ -226,6 +228,8 @@
             <div class="mb-2">
                 <h6 class="fw-bold mb-1 text-dark">{{ $item->nama_barang }}</h6>
                 <div class="text-muted small"><i class="bi bi-shop me-1"></i>{{ $item->nama_toko }} @if(!empty($item->nama_alamat)) | <i class="bi bi-geo-alt me-1 text-danger"></i>{{ $item->nama_alamat }} @endif</div>
+                <div class="text-muted small">Titipan: {{ $item->titipan ?? 'Tidak' }}</div>
+                <div class="text-muted small">Trader: {{ $item->nama_trader ?: '-' }}</div>
             </div>
 
             @if(!empty($item->detail_imei))
@@ -319,6 +323,18 @@
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Via Pembelian</label>
                             <input type="text" name="via" class="form-control" value="{{ $item->via }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Nama Trader</label>
+                            <input type="text" name="nama_trader" class="form-control" value="{{ $item->nama_trader }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Titipan</label>
+                            <select name="titipan" class="form-select" required>
+                                @foreach(['Tidak', 'Ya', 'Ya, (tidak ambil untung)'] as $titipanOption)
+                                <option value="{{ $titipanOption }}" {{ ($item->titipan ?? 'Tidak') === $titipanOption ? 'selected' : '' }}>{{ $titipanOption }}</option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="col-12">
                             <label class="form-label fw-semibold">IMEI / Serial</label>

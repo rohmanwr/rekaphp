@@ -28,7 +28,7 @@
                     <select id="master_nama_barang" class="form-select" required>
                         <option value="" selected disabled>-- Pilih Barang --</option>
                         @foreach ($barangs as $barang)
-                        <option value="{{ $barang->nama_barang }}">{{ $barang->nama_barang }}</option>
+                        <option value="{{ $barang->nama_barang }}" data-harga="{{ (int) $barang->harga_jual }}">{{ $barang->nama_barang }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -56,6 +56,11 @@
                     <input type="text" id="input_master_via_manual" class="form-control mt-2 d-none" value="Tokopedia" placeholder="Ketik platform/via transaksi manual...">
                 </div>
 
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Nama Trader</label>
+                    <input type="text" id="master_nama_trader" class="form-control" placeholder="Masukkan nama trader (opsional)" autocomplete="off">
+                </div>
+
                 <!-- Input Qty Khusus Transaksi COD -->
                 <div class="col-md-6 d-none" id="wrapper_master_qty_cod">
                     <label class="form-label fw-semibold text-primary">Jumlah Qty Barang (COD) <span class="text-danger">*</span></label>
@@ -66,6 +71,15 @@
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Tanggal Beli <span class="text-danger">*</span></label>
                     <input type="date" id="master_tanggal_beli" class="form-control" value="{{ date('Y-m-d') }}" required>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Titipan <span class="text-danger">*</span></label>
+                    <select id="master_titipan" class="form-select" required>
+                        <option value="Tidak" selected>Tidak</option>
+                        <option value="Ya">Ya</option>
+                        <option value="Ya, (tidak ambil untung)">Ya, (tidak ambil untung)</option>
+                    </select>
                 </div>
 
                 <div class="col-md-6">
@@ -181,6 +195,22 @@
         const wrapperMasterQtyCod = document.getElementById('wrapper_master_qty_cod');
         const masterQtyCod = document.getElementById('master_qty_cod');
         const masterModalInput = document.getElementById('master_total_modal');
+        const masterTitipan = document.getElementById('master_titipan');
+        const masterBarangSelect = document.getElementById('master_nama_barang');
+
+        function syncMasterModal() {
+            const usesMasterPrice = masterTitipan.value === 'Ya, (tidak ambil untung)';
+            masterModalInput.readOnly = usesMasterPrice;
+            if (usesMasterPrice) {
+                const selectedBarang = masterBarangSelect.selectedOptions[0];
+                masterModalInput.value = selectedBarang?.dataset.harga ?
+                    formatRupiah(selectedBarang.dataset.harga) :
+                    '';
+            }
+        }
+
+        masterTitipan.addEventListener('change', syncMasterModal);
+        masterBarangSelect.addEventListener('change', syncMasterModal);
 
         const modalElement = document.getElementById('modalScanner');
         const modalScanner = new bootstrap.Modal(modalElement);
@@ -418,7 +448,9 @@
         if (formElement) {
             formElement.addEventListener('submit', function(e) {
                 const masterNamaBarang = document.getElementById('master_nama_barang').value;
+                const masterTitipanValue = masterTitipan.value;
                 const masterNamaToko = document.getElementById('master_nama_toko').value;
+                const masterNamaTrader = document.getElementById('master_nama_trader').value;
                 const masterVia = selectMasterVia.value === 'Lainnya' ? inputMasterViaManual.value : selectMasterVia.value;
                 const masterTanggalBeli = document.getElementById('master_tanggal_beli').value;
                 const masterTotalModal = masterModalInput.value.replace(/\./g, '');
@@ -439,8 +471,10 @@
                         <input type="hidden" name="items[${i}][nama_barang]" value="${masterNamaBarang}">
                         <input type="hidden" name="items[${i}][nama_toko]" value="${masterNamaToko}">
                         <input type="hidden" name="items[${i}][via]" value="${masterVia}">
+                        <input type="hidden" name="items[${i}][nama_trader]" value="${masterNamaTrader}">
                         <input type="hidden" name="items[${i}][tanggal_beli]" value="${masterTanggalBeli}">
                         <input type="hidden" name="items[${i}][total_modal]" value="${masterTotalModal}">
+                        <input type="hidden" name="items[${i}][titipan]" value="${masterTitipanValue}">
                         <input type="hidden" name="items[${i}][status]" value="${masterStatus}">
 
                         <input type="hidden" name="items[${i}][kode_manual]" value="${kodeManual}">

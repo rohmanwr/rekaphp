@@ -246,6 +246,8 @@
                             <td>
                                 <strong>{{ $item->nama_barang }}</strong><br>
                                 <small class="text-muted"><i class="bi bi-shop"></i> {{ $item->nama_toko }}</small>
+                                <br><small class="text-muted">Titipan: {{ $item->titipan ?? 'Tidak' }}</small>
+                                <br><small class="text-muted">Trader: {{ $item->nama_trader ?: '-' }}</small>
                             </td>
                             <td>
                                 @if(!empty($item->detail_imei))
@@ -356,6 +358,10 @@
                     <div>
                         <dt>Toko</dt>
                         <dd><i class="bi bi-shop me-1 text-muted"></i>{{ $item->nama_toko }}</dd>
+                    </div>
+                    <div>
+                        <dt>Titipan / Trader</dt>
+                        <dd>{{ $item->titipan ?? 'Tidak' }} / {{ $item->nama_trader ?: '-' }}</dd>
                     </div>
                     <div>
                         <dt>Via / Tanggal beli</dt>

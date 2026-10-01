@@ -51,6 +51,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Route Statis
         Route::patch('/pembelian/update-status-massal', [PembelianController::class, 'updateStatusMassal'])->name('pembelian.updateStatusMassal');
+        Route::patch('/pembelian/update-massal', [PembelianController::class, 'updateMassal'])->name('pembelian.updateMassal');
         Route::post('/pembelian/save-checklist', [PembelianController::class, 'saveChecklist'])->name('pembelian.saveChecklist');
 
         // Route dengan Parameter {id}

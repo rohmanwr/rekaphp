@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class PembelianController extends Controller
 {
@@ -43,7 +44,15 @@ class PembelianController extends Controller
             });
         }
 
-        $pembelians = $query->latest()->get();
+        if ($selectedStatus === 'Selesai') {
+            $pembelians = $query
+                ->orderByRaw('CASE WHEN tanggal_terbit IS NULL THEN 1 ELSE 0 END')
+                ->orderByDesc('tanggal_terbit')
+                ->orderByDesc('id')
+                ->get();
+        } else {
+            $pembelians = $query->latest()->get();
+        }
 
         $barangs = Barang::orderBy('nama_barang', 'asc')->get();
         $tokos   = Toko::orderBy('nama_toko', 'asc')->get();
@@ -63,6 +72,13 @@ class PembelianController extends Controller
 
     public function store(Request $request)
     {
+        $titipanOptions = ['Tidak', 'Ya', 'Ya, (tidak ambil untung)'];
+        $request->validate([
+            'titipan' => ['sometimes', Rule::in($titipanOptions)],
+            'items' => 'sometimes|array',
+            'items.*.titipan' => ['nullable', Rule::in($titipanOptions)],
+        ]);
+
         // 1. Dapatkan daftar item multi-input
         $itemsData = $request->input('items', []);
 
@@ -75,8 +91,10 @@ class PembelianController extends Controller
                     'nama_barang'  => $request->input('nama_barang'),
                     'nama_toko'    => $request->input('nama_toko'),
                     'via'          => $request->input('via'),
+                    'nama_trader'  => $request->input('nama_trader'),
                     'tanggal_beli' => $request->input('tanggal_beli'),
                     'total_modal'  => $request->input('total_modal'),
+                    'titipan'      => $request->input('titipan', 'Tidak'),
                     'status'       => $request->input('status', 'Belum Ready'),
                     'detail_imei'  => $request->input('detail_imei'),
                     'qty'          => $request->input('qty', 1),
@@ -88,10 +106,21 @@ class PembelianController extends Controller
             return redirect()->back()->with('error', 'Tidak ada data transaksi yang dikirim.');
         }
 
+        $masterPrices = Barang::whereIn('nama_barang', collect($itemsData)->pluck('nama_barang')->filter())
+            ->pluck('harga_jual', 'nama_barang');
+
         $totalTercatat = 0;
 
         foreach ($itemsData as $idx => $item) {
-            $totalModalBersih = str_replace('.', '', $item['total_modal'] ?? 0);
+            $titipan = $item['titipan'] ?? 'Tidak';
+            if ($titipan === 'Ya, (tidak ambil untung)' && !$masterPrices->has($item['nama_barang'] ?? '')) {
+                return redirect()->back()->withInput()->withErrors([
+                    'nama_barang' => 'Barang tidak ditemukan di master barang, sehingga harga modal titipan tidak dapat diambil.',
+                ]);
+            }
+            $totalModalBersih = $titipan === 'Ya, (tidak ambil untung)'
+                ? round((float) $masterPrices->get($item['nama_barang']))
+                : preg_replace('/\D/', '', (string) ($item['total_modal'] ?? 0));
             $via = $item['via'] ?? 'Tokopedia';
             $qty = ($via === 'COD' && !empty($item['qty'])) ? (int) $item['qty'] : 1;
 
@@ -116,8 +145,10 @@ class PembelianController extends Controller
                     'nama_barang'   => $item['nama_barang'] ?? null,
                     'nama_toko'     => $item['nama_toko'] ?? null,
                     'via'           => $via,
+                    'nama_trader'   => $item['nama_trader'] ?? null,
                     'tanggal_beli'  => $item['tanggal_beli'] ?? date('Y-m-d'),
                     'total_modal'   => $totalModalBersih,
+                    'titipan'       => $titipan,
                     'status'        => $item['status'] ?? 'Belum Ready',
                     'detail_imei'   => $item['detail_imei'] ?? null,
                     'kode_otomatis' => 'TRX-' . date('Ymd') . '-' . rand(100, 999),
@@ -208,6 +239,122 @@ class PembelianController extends Controller
         return redirect()->back()->with('success', $message);
     }
 
+    public function updateMassal(Request $request)
+    {
+        $allowedFields = ['nama_trader', 'titipan', 'nama_toko', 'via', 'nama_alamat', 'tanggal_beli', 'total_modal'];
+        $data = $request->validate([
+            'pembelian_ids' => 'required|array|min:1',
+            'pembelian_ids.*' => 'required|integer|distinct|exists:pembelians,id',
+            'fields' => 'required|array|min:1',
+            'fields.*' => ['required', Rule::in($allowedFields)],
+            'nama_trader' => 'nullable|string|max:255',
+            'titipan' => ['nullable', Rule::in(['Tidak', 'Ya', 'Ya, (tidak ambil untung)'])],
+            'nama_toko' => 'nullable|string|max:255',
+            'via' => 'nullable|string|max:255',
+            'nama_alamat' => 'nullable|string|max:255',
+            'tanggal_beli' => 'nullable|date',
+            'total_modal' => 'nullable|numeric|min:0',
+        ]);
+
+        $fields = array_unique($data['fields']);
+        foreach ($fields as $field) {
+            if (!array_key_exists($field, $data)) {
+                return redirect()->back()->with('error', 'Isi nilai untuk setiap field yang dipilih untuk diperbarui.');
+            }
+        }
+
+        foreach (['nama_toko', 'via', 'tanggal_beli', 'total_modal'] as $requiredField) {
+            if (in_array($requiredField, $fields, true) && blank($data[$requiredField])) {
+                return redirect()->back()->with('error', 'Isi nilai untuk setiap field yang dipilih untuk diperbarui.');
+            }
+        }
+
+        $requestedUpdates = array_intersect_key($data, array_flip($fields));
+        $pembelians = Pembelian::whereIn('id', $data['pembelian_ids'])->get();
+        $updatable = collect();
+        $lockedCount = 0;
+        foreach ($pembelians as $pembelian) {
+            if (Invoice::isLockedForPurchase($pembelian)) {
+                $lockedCount++;
+            } else {
+                $updatable->push($pembelian);
+            }
+        }
+
+        if ($updatable->isEmpty()) {
+            return redirect()->back()->with('error', 'Semua data yang dipilih terkunci oleh invoice dan tidak dapat diubah.');
+        }
+
+        $needsMasterPrice = in_array('total_modal', $fields, true)
+            || (in_array('titipan', $fields, true) && $requestedUpdates['titipan'] === 'Ya, (tidak ambil untung)');
+        $masterPrices = $needsMasterPrice
+            ? Barang::whereIn('nama_barang', $updatable->pluck('nama_barang'))->pluck('harga_jual', 'nama_barang')
+            : collect();
+
+        if ($needsMasterPrice) {
+            foreach ($updatable as $pembelian) {
+                $effectiveTitipan = $requestedUpdates['titipan'] ?? $pembelian->titipan;
+                if (
+                    $effectiveTitipan === 'Ya, (tidak ambil untung)'
+                    && !$masterPrices->has($pembelian->nama_barang)
+                ) {
+                    return redirect()->back()->withInput()->with('error', "Harga master tidak ditemukan untuk {$pembelian->nama_barang}; tidak ada data yang diubah.");
+                }
+            }
+        }
+
+        DB::transaction(function () use ($updatable, $requestedUpdates, $masterPrices, $needsMasterPrice, $fields) {
+            $updatesByPurchase = [];
+
+            foreach ($updatable as $pembelian) {
+                $itemUpdates = $requestedUpdates;
+                $effectiveTitipan = $itemUpdates['titipan'] ?? $pembelian->titipan;
+                if ($needsMasterPrice && $effectiveTitipan === 'Ya, (tidak ambil untung)') {
+                    $itemUpdates['total_modal'] = round((float) $masterPrices->get($pembelian->nama_barang));
+                } elseif (in_array('total_modal', $fields, true)) {
+                    $itemUpdates['total_modal'] = round((float) $itemUpdates['total_modal']);
+                }
+
+                $pembelian->update($itemUpdates);
+                $updatesByPurchase[$pembelian->id] = $itemUpdates;
+            }
+
+            foreach (Invoice::whereNotNull('pembelian_data')->get() as $invoice) {
+                $snapshotItems = $invoice->pembelian_data ?? [];
+                $changed = false;
+
+                foreach ($snapshotItems as &$snapshotItem) {
+                    $purchaseId = (int) ($snapshotItem['pembelian_id'] ?? 0);
+                    if (!isset($updatesByPurchase[$purchaseId])) {
+                        continue;
+                    }
+
+                    foreach ($updatesByPurchase[$purchaseId] as $field => $value) {
+                        $snapshotItem[$field] = $value;
+                    }
+                    if (array_key_exists('total_modal', $updatesByPurchase[$purchaseId])) {
+                        $snapshotItem['total_profit'] = (float) ($snapshotItem['harga_jual'] ?? 0)
+                            - (float) $updatesByPurchase[$purchaseId]['total_modal'];
+                    }
+                    $changed = true;
+                }
+                unset($snapshotItem);
+
+                if ($changed) {
+                    $invoice->pembelian_data = $snapshotItems;
+                    $invoice->save();
+                }
+            }
+        });
+
+        $message = 'Data ' . $updatable->count() . ' barang berhasil diedit secara massal.';
+        if ($lockedCount > 0) {
+            $message .= " {$lockedCount} data terkunci dilewati.";
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
     public function update(Request $request, $id)
     {
         $pembelian = Pembelian::findOrFail($id);
@@ -216,20 +363,33 @@ class PembelianController extends Controller
             return redirect()->back()->with('error', 'Data ini terkunci oleh invoice dan tidak dapat diubah.');
         }
 
+        $titipanOptions = ['Tidak', 'Ya', 'Ya, (tidak ambil untung)'];
         $request->validate([
             'kode_manual'  => 'nullable|string|max:255',
             'nama_alamat'  => 'nullable|string|max:255',
             'nama_barang'  => 'required|string|max:255',
             'nama_toko'    => 'required|string|max:255',
             'via'          => 'required|string|max:255',
+            'nama_trader'  => 'nullable|string|max:255',
             'tanggal_beli' => 'required|date',
             'total_modal'  => 'required',
+            'titipan'      => ['required', Rule::in($titipanOptions)],
             'status'       => 'required|in:Belum Ready,Sudah Ready,Sudah Diambil,Bermasalah,Jual,Selesai',
             'detail_imei'  => 'nullable|string',
         ]);
 
         $data = $request->except(['file_lampiran', 'delete_files']);
-        $data['total_modal'] = str_replace('.', '', $data['total_modal']);
+        if ($data['titipan'] === 'Ya, (tidak ambil untung)') {
+            $barang = Barang::where('nama_barang', $data['nama_barang'])->first();
+            if (!$barang) {
+                return redirect()->back()->withInput()->withErrors([
+                    'nama_barang' => 'Barang tidak ditemukan di master barang, sehingga harga modal titipan tidak dapat diambil.',
+                ]);
+            }
+            $data['total_modal'] = round((float) $barang->harga_jual);
+        } else {
+            $data['total_modal'] = preg_replace('/\D/', '', (string) $data['total_modal']);
+        }
         $data['detail_imei'] = $request->input('detail_imei');
 
         $currentFiles = $pembelian->file_lampiran ?? [];
@@ -352,6 +512,8 @@ class PembelianController extends Controller
             'nama_device'  => 'nullable|string|max:255',
             'nama_toko'    => 'required|string|max:255',
             'via'          => 'required|string|max:255',
+            'nama_trader'  => 'nullable|string|max:255',
+            'titipan'      => ['required', Rule::in(['Tidak', 'Ya', 'Ya, (tidak ambil untung)'])],
             'detail_imei'  => 'nullable|string|max:250',
             'total_modal'  => 'required|numeric|min:0',
         ]);
@@ -415,7 +577,7 @@ class PembelianController extends Controller
                     continue;
                 }
 
-                foreach (['nama_barang', 'nama_device', 'nama_toko', 'via', 'detail_imei', 'total_modal'] as $field) {
+                foreach (['nama_barang', 'nama_device', 'nama_toko', 'via', 'nama_trader', 'titipan', 'detail_imei', 'total_modal'] as $field) {
                     $snapshotItem[$field] = $data[$field] ?? null;
                 }
                 $snapshotItem['nama_alamat'] = $data['nama_alamat'] ?? null;
@@ -436,7 +598,7 @@ class PembelianController extends Controller
                     continue;
                 }
 
-                foreach (['nama_barang', 'nama_device', 'nama_toko', 'via'] as $field) {
+                foreach (['nama_barang', 'nama_device', 'nama_toko', 'via', 'nama_trader', 'titipan'] as $field) {
                     $invoiceItem[$field] = $data[$field] ?? null;
                 }
                 $invoiceItem['detail_imei'] = $data['detail_imei'] ?? null;
@@ -505,7 +667,8 @@ class PembelianController extends Controller
                         ->orWhere('nama_toko', 'like', "%{$search}%");
                 });
             })
-            ->latest()
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
             ->get();
 
         $barangs = Barang::all()->keyBy('nama_barang');
@@ -686,6 +849,8 @@ class PembelianController extends Controller
                     'nama_alamat'   => $pItem->nama_alamat ?? null,
                     'nama_toko'     => $pItem->nama_toko,
                     'via'           => $pItem->via,
+                    'titipan'       => $pItem->titipan ?? 'Tidak',
+                    'nama_trader'   => $pItem->nama_trader,
                     'detail_imei'   => $pItem->detail_imei ?? '-',
                     'tanggal_beli'  => $pItem->tanggal_beli,
                     'total_modal'   => $modalItem,

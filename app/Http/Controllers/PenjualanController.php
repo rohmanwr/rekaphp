@@ -119,6 +119,9 @@ class PenjualanController extends Controller
                     if (empty($tglBeliVal)) $tglBeliVal = $pembelianRecord->tanggal_beli;
                 }
 
+                $titipanVal = $it['titipan'] ?? ($pembelianRecord->titipan ?? 'Tidak');
+                $namaTraderVal = $it['nama_trader'] ?? ($pembelianRecord->nama_trader ?? null);
+
                 $hargaJualVal = 0;
                 if (isset($it['harga_jual']) && is_numeric($it['harga_jual'])) {
                     $hargaJualVal = (float) $it['harga_jual'];
@@ -137,6 +140,9 @@ class PenjualanController extends Controller
                 if (!isset($it['harga_jual']) || $it['harga_jual'] != $hargaJualVal) {
                     $dataHasChanged = true;
                 }
+                if (!isset($it['titipan']) || !array_key_exists('nama_trader', $it)) {
+                    $dataHasChanged = true;
+                }
 
                 $normalizedItems[] = [
                     'pembelian_id'  => $it['pembelian_id'] ?? null,
@@ -145,6 +151,8 @@ class PenjualanController extends Controller
                     'nama_alamat'   => $it['nama_alamat'] ?? ($pembelianRecord->nama_alamat ?? null),
                     'nama_toko'     => $tokoVal,
                     'via'           => $viaVal,
+                    'titipan'       => $titipanVal,
+                    'nama_trader'   => $namaTraderVal,
                     'detail_imei'   => $imeiVal,
                     'tanggal_beli'  => $tglBeliVal,
                     'total_modal'   => $modalVal,
@@ -159,6 +167,8 @@ class PenjualanController extends Controller
                 DB::table('invoices')
                     ->where('id', $invoice->id)
                     ->update(['pembelian_data' => json_encode($normalizedItems)]);
+            }
+            if (!empty($normalizedItems)) {
                 $invoice->pembelian_data = $normalizedItems;
             }
         }

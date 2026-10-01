@@ -477,6 +477,8 @@
                     'nama_alamat' => $it['nama_alamat'] ?? null,
                     'nama_toko' => $it['nama_toko'] ?? ($it['toko'] ?? '-'),
                     'via' => $it['via'] ?? '-',
+                    'titipan' => $it['titipan'] ?? 'Tidak',
+                    'nama_trader' => $it['nama_trader'] ?? null,
                     'detail_imei' => $singleImei,
                     'tanggal_beli' => $it['tanggal_beli'] ?? $invoice->tanggal,
                     'total_modal' => $modalIt,
@@ -498,6 +500,8 @@
                     'nama_alamat' => $it['nama_alamat'] ?? null,
                     'nama_toko' => $it['nama_toko'] ?? ($it['toko'] ?? '-'),
                     'via' => $it['via'] ?? '-',
+                    'titipan' => $it['titipan'] ?? 'Tidak',
+                    'nama_trader' => $it['nama_trader'] ?? null,
                     'detail_imei' => $singleImei,
                     'tanggal_beli' => $it['tanggal_beli'] ?? $invoice->tanggal,
                     'total_modal' => $modalIt,
@@ -698,6 +702,8 @@
                                                         <br><small class="text-primary fw-semibold"><i class="bi bi-phone"></i> {{ $pItem['nama_device'] }}</small>
                                                         @endif
                                                         <br><small class="text-muted"><i class="bi bi-shop"></i> {{ $pItem['nama_toko'] }}</small>
+                                                        <br><small class="text-muted">Titipan: {{ $pItem['titipan'] ?? 'Tidak' }}</small>
+                                                        <br><small class="text-muted">Trader: {{ $pItem['nama_trader'] ?: '-' }}</small>
                                                         @if(!empty($pItem['nama_alamat']))
                                                         <br><small class="text-danger"><i class="bi bi-geo-alt"></i> {{ $pItem['nama_alamat'] }}</small>
                                                         @endif

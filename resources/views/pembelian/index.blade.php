@@ -160,7 +160,7 @@
                                 <input type="checkbox" id="selectAll" class="form-check-input" title="Pilih Semua">
                             </th>
                             <th class="text-center" style="width: 50px;">No</th>
-                            <th>Kode Manual / Alamat</th>
+                            <th>No Pesanan / Nama / Trader</th>
                             <th>Barang & Toko</th>
                             <th>IMEI / Serial</th>
                             <th>Via</th>
@@ -197,9 +197,11 @@
                                 @if(!empty($item->nama_alamat))
                                 <br><small class="text-muted"><i class="bi bi-geo-alt"></i> {{ $item->nama_alamat }}</small>
                                 @endif
+                                <br><small class="text-muted">Trader: {{ $item->nama_trader ?: '-' }}</small>
                             </td>
                             <td>
                                 <strong>{{ $item->nama_barang }}</strong>
+                                <br><small class="text-muted">Titipan: {{ $item->titipan ?? 'Tidak' }}</small>
                                 @if(!empty($item->nama_device))
                                 <br><small class="text-primary fw-semibold"><i class="bi bi-phone"></i> {{ $item->nama_device }}</small>
                                 @endif
@@ -330,6 +332,7 @@
 
                 <div class="mb-2">
                     <h6 class="fw-bold mb-1 text-dark">{{ $item->nama_barang }}</h6>
+                    <div class="text-muted small mb-1">Titipan: {{ $item->titipan ?? 'Tidak' }}</div>
                     @if(!empty($item->nama_device))
                     <div class="text-primary fw-semibold small mb-1"><i class="bi bi-phone me-1"></i>{{ $item->nama_device }}</div>
                     @endif
@@ -346,6 +349,7 @@
                     <span class="text-muted small"><i class="bi bi-calendar-event me-1"></i>{{ \Carbon\Carbon::parse($item->tanggal_beli)->format('d/m/Y') }}</span>
                     <span class="fw-bold text-dark fs-6">Rp {{ number_format($item->total_modal, 0, ',', '.') }}</span>
                 </div>
+                <div class="text-muted small mb-2">Trader: {{ $item->nama_trader ?: '-' }}</div>
 
                 @if(!empty($item->file_lampiran) && count($item->file_lampiran) > 0)
                 <div class="mb-2 d-flex flex-wrap gap-1">
@@ -398,6 +402,9 @@
                 <span id="selectedCount" class="fw-bold text-warning">0</span> item dipilih:
             </div>
             <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-outline-light btn-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#modalEditMassal">
+                    <i class="bi bi-pencil-square me-1"></i>Edit Data Batch
+                </button>
                 <select name="status_massal" class="form-select form-select-sm" style="min-width: 140px;" required>
                     <option value="" disabled selected>-- Status Baru --</option>
                     <option value="Belum Ready">⏳ Belum Ready</option>
@@ -412,6 +419,64 @@
         </div>
     </div>
 </form>
+
+<div class="modal fade" id="modalEditMassal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Edit Banyak Barang</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+            </div>
+            <form action="{{ route('pembelian.updateMassal') }}" method="POST" id="formEditMassal">
+                @csrf
+                @method('PATCH')
+                <div id="editMassalSelectedIds"></div>
+                <div class="modal-body">
+                    <p class="small text-muted"><span id="editMassalSelectedCount" class="fw-bold text-dark">0</span> barang dipilih. Centang field yang ingin diterapkan ke semua barang terpilih; field lain tidak akan diubah.</p>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="form-check mb-1"><input class="form-check-input bulk-field-toggle" type="checkbox" name="fields[]" value="nama_trader" data-target="bulkNamaTrader" id="bulkFieldTrader"><label class="form-check-label fw-semibold" for="bulkFieldTrader">Nama Trader</label></div>
+                            <input type="text" name="nama_trader" id="bulkNamaTrader" class="form-control" placeholder="Nama trader baru atau kosongkan" disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mb-1"><input class="form-check-input bulk-field-toggle" type="checkbox" name="fields[]" value="titipan" data-target="bulkTitipan" id="bulkFieldTitipan"><label class="form-check-label fw-semibold" for="bulkFieldTitipan">Titipan</label></div>
+                            <select name="titipan" id="bulkTitipan" class="form-select" disabled>
+                                <option value="Tidak">Tidak</option>
+                                <option value="Ya">Ya</option>
+                                <option value="Ya, (tidak ambil untung)">Ya, (tidak ambil untung)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mb-1"><input class="form-check-input bulk-field-toggle" type="checkbox" name="fields[]" value="nama_toko" data-target="bulkNamaToko" id="bulkFieldToko"><label class="form-check-label fw-semibold" for="bulkFieldToko">Nama Toko</label></div>
+                            <input type="text" name="nama_toko" id="bulkNamaToko" class="form-control" disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mb-1"><input class="form-check-input bulk-field-toggle" type="checkbox" name="fields[]" value="via" data-target="bulkVia" id="bulkFieldVia"><label class="form-check-label fw-semibold" for="bulkFieldVia">Via Pembelian</label></div>
+                            <input type="text" name="via" id="bulkVia" class="form-control" placeholder="Contoh: Tokopedia" disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mb-1"><input class="form-check-input bulk-field-toggle" type="checkbox" name="fields[]" value="nama_alamat" data-target="bulkNamaAlamat" id="bulkFieldAlamat"><label class="form-check-label fw-semibold" for="bulkFieldAlamat">Nama / Alamat</label></div>
+                            <input type="text" name="nama_alamat" id="bulkNamaAlamat" class="form-control" placeholder="Nama atau alamat baru" disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mb-1"><input class="form-check-input bulk-field-toggle" type="checkbox" name="fields[]" value="tanggal_beli" data-target="bulkTanggalBeli" id="bulkFieldTanggal"><label class="form-check-label fw-semibold" for="bulkFieldTanggal">Tanggal Beli</label></div>
+                            <input type="date" name="tanggal_beli" id="bulkTanggalBeli" class="form-control" disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mb-1"><input class="form-check-input bulk-field-toggle" type="checkbox" name="fields[]" value="total_modal" data-target="bulkTotalModal" id="bulkFieldModal"><label class="form-check-label fw-semibold" for="bulkFieldModal">Total Modal</label></div>
+                            <input type="number" name="total_modal" id="bulkTotalModal" class="form-control" min="0" step="1" placeholder="Rp" disabled>
+                            <small class="text-muted">Untuk Titipan tanpa untung, modal tiap barang mengikuti harga master.</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary fw-semibold"><i class="bi bi-save me-1"></i>Terapkan ke Barang Terpilih</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <!-- Form Hapus Independen per Item -->
 @foreach($pembelians as $item)
@@ -430,7 +495,7 @@
                 <h5 class="modal-title fw-bold fs-6">Edit Rekap Pembelian ({{ $item->kode_otomatis }})</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" data-scanner-action="stop" data-item-id="{{ $item->id }}"></button>
             </div>
-            <form action="{{ route('pembelian.update', $item->id) }}" method="POST" enctype="multipart/form-data" class="form-pembelian">
+            <form action="{{ route('pembelian.update', $item->id) }}" method="POST" enctype="multipart/form-data" class="form-pembelian purchase-titipan-form">
                 @csrf
                 @method('PUT')
                 <div class="modal-body">
@@ -450,24 +515,14 @@
                             <select name="nama_barang" class="form-select" required>
                                 <option value="" disabled>-- Pilih Barang --</option>
                                 @foreach($barangs as $brg)
-                                <option value="{{ $brg->nama_barang }}" {{ $item->nama_barang == $brg->nama_barang ? 'selected' : '' }}>
+                                <option value="{{ $brg->nama_barang }}" data-harga="{{ (int) $brg->harga_jual }}" {{ $item->nama_barang == $brg->nama_barang ? 'selected' : '' }}>
                                     {{ $brg->nama_barang }}
                                 </option>
                                 @endforeach
                             </select>
                         </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label">Nama Device (Spesifik)</label>
-                            <select name="nama_device" class="form-select">
-                                <option value="" selected>-- Pilih Device --</option>
-                                @foreach($devices as $dev)
-                                <option value="{{ $dev->nama_device }}" {{ $item->nama_device == $dev->nama_device ? 'selected' : '' }}>
-                                    [{{ $dev->kode_device }}] {{ $dev->nama_device }}
-                                </option>
-                                @endforeach
-                            </select>
-                        </div>
+
 
                         <div class="col-md-6">
                             <label class="form-label">Nama Toko Pembelian</label>
@@ -491,6 +546,7 @@
                                 <option value="Shopee" {{ $item->via == 'Shopee' ? 'selected' : '' }}>Shopee</option>
                                 <option value="Lazada" {{ $item->via == 'Lazada' ? 'selected' : '' }}>Lazada</option>
                                 <option value="TikTok" {{ $item->via == 'TikTok' ? 'selected' : '' }}>TikTok</option>
+                                <option value="COD" {{ $item->via == 'COD' ? 'selected' : '' }}>COD</option>
                                 <option value="Lainnya" {{ $isCustomVia ? 'selected' : '' }}>Lainnya (Ketik Manual)</option>
                             </select>
                             <input
@@ -504,6 +560,20 @@
                         </div>
 
                         <div class="col-md-6">
+                            <label class="form-label">Nama Trader</label>
+                            <input type="text" name="nama_trader" class="form-control" value="{{ old('nama_trader', $item->nama_trader) }}" placeholder="Masukkan nama trader (opsional)">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Titipan</label>
+                            <select name="titipan" class="form-select titipan-select" required>
+                                @foreach(['Tidak', 'Ya', 'Ya, (tidak ambil untung)'] as $titipanOption)
+                                <option value="{{ $titipanOption }}" {{ ($item->titipan ?? 'Tidak') === $titipanOption ? 'selected' : '' }}>{{ $titipanOption }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
                             <label class="form-label">Tanggal Beli</label>
                             <input type="date" name="tanggal_beli" class="form-control" value="{{ old('tanggal_beli', $item->tanggal_beli) }}" required>
                         </div>
@@ -513,7 +583,7 @@
                             <input
                                 type="text"
                                 name="total_modal"
-                                class="form-control input-rupiah"
+                                class="form-control input-rupiah total-modal-titipan"
                                 value="{{ number_format($item->total_modal, 0, ',', '.') }}"
                                 placeholder="Misal: 8.500.000"
                                 required
@@ -1183,6 +1253,68 @@
                 }, 700);
             });
         }
+
+        function syncTitipanPrice(form) {
+            const titipan = form.querySelector('.titipan-select');
+            const nameInput = form.querySelector('[name="nama_barang"]');
+            const totalInput = form.querySelector('.total-modal-titipan');
+            if (!titipan || !nameInput || !totalInput) return;
+
+            const useMasterPrice = titipan.value === 'Ya, (tidak ambil untung)';
+            totalInput.readOnly = useMasterPrice;
+            if (!useMasterPrice) return;
+
+            const price = nameInput.selectedOptions?.[0]?.dataset.harga;
+            totalInput.value = price === undefined ? '' : Math.round(Number(price)).toLocaleString('id-ID');
+        }
+
+        document.querySelectorAll('.purchase-titipan-form').forEach(function(form) {
+            form.querySelector('.titipan-select')?.addEventListener('change', function() {
+                syncTitipanPrice(form);
+            });
+            form.querySelector('[name="nama_barang"]')?.addEventListener('change', function() {
+                syncTitipanPrice(form);
+            });
+            syncTitipanPrice(form);
+        });
+
+        const modalEditMassal = document.getElementById('modalEditMassal');
+        const selectedIdsContainer = document.getElementById('editMassalSelectedIds');
+        modalEditMassal?.addEventListener('show.bs.modal', function() {
+            const selectedIds = new Set(
+                Array.from(document.querySelectorAll('#formMassal .item-checkbox:checked'))
+                .map(checkbox => checkbox.dataset.id)
+                .filter(Boolean)
+            );
+            selectedIdsContainer.replaceChildren();
+            selectedIds.forEach(function(id) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'pembelian_ids[]';
+                input.value = id;
+                selectedIdsContainer.appendChild(input);
+            });
+            document.getElementById('editMassalSelectedCount').textContent = selectedIds.size;
+        });
+
+        document.querySelectorAll('.bulk-field-toggle').forEach(function(toggle) {
+            toggle.addEventListener('change', function() {
+                const input = document.getElementById(this.dataset.target);
+                if (input) input.disabled = !this.checked;
+            });
+        });
+
+        document.getElementById('formEditMassal')?.addEventListener('submit', function(event) {
+            if (!selectedIdsContainer.querySelector('input[name="pembelian_ids[]"]')) {
+                event.preventDefault();
+                alert('Pilih minimal satu barang terlebih dahulu.');
+                return;
+            }
+            if (!this.querySelector('.bulk-field-toggle:checked')) {
+                event.preventDefault();
+                alert('Pilih minimal satu field yang ingin diubah.');
+            }
+        });
 
         // Select Via Toggle Edit Modal
         document.addEventListener('change', function(e) {
