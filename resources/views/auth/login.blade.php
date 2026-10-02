@@ -14,14 +14,14 @@
     <form method="POST" action="{{ route('login') }}">
         @csrf
 
-        <!-- Email Address -->
+        <!-- Username -->
         <div class="mb-3">
-            <label for="email" class="form-label fw-semibold text-secondary small">Email</label>
+            <label for="username" class="form-label fw-semibold text-secondary small">Username</label>
             <div class="input-group">
-                <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-envelope"></i></span>
-                <input id="email" type="email" class="form-control border-start-0 ps-0 @error('email') is-invalid @enderror" name="email" value="{{ old('email') }}" required autofocus autocomplete="username" placeholder="nama@email.com">
+                <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-person"></i></span>
+                <input id="username" type="text" class="form-control border-start-0 ps-0 @error('username') is-invalid @enderror" name="username" value="{{ old('username') }}" required autofocus autocomplete="username" placeholder="Masukkan username">
             </div>
-            <x-input-error :messages="$errors->get('email')" class="text-danger small mt-1" />
+            <x-input-error :messages="$errors->get('username')" class="text-danger small mt-1" />
         </div>
 
         <!-- Password -->
@@ -38,7 +38,7 @@
             </div>
             <div class="input-group mt-1">
                 <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-lock"></i></span>
-                <input id="password" type="password" class="form-control border-start-0 ps-0 @error('password') is-invalid @enderror" name="password" required autocomplete="current-password" placeholder="••••••••">
+                <input id="password" type="password" minlength="3" class="form-control border-start-0 ps-0 @error('password') is-invalid @enderror" name="password" required autocomplete="current-password" placeholder="••••••••">
             </div>
             <x-input-error :messages="$errors->get('password')" class="text-danger small mt-1" />
         </div>

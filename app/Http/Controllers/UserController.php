@@ -14,6 +14,28 @@ class UserController extends Controller
         return view('user.index', compact('users'));
     }
 
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'username' => ['required', 'string', 'max:255', 'alpha_dash', 'unique:users,username'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:3', 'confirmed'],
+            'role' => ['required', 'in:admin,user'],
+        ]);
+
+        User::create([
+            'name' => $validated['name'],
+            'username' => $validated['username'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'role' => $validated['role'],
+            'status' => 'active',
+        ]);
+
+        return redirect()->route('user.index')->with('success', 'User baru berhasil ditambahkan.');
+    }
+
     public function updateRole(Request $request, $id)
     {
         $request->validate([

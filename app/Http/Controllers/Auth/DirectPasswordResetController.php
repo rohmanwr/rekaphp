@@ -17,19 +17,19 @@ class DirectPasswordResetController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'email' => ['required', 'email'],
-            'password' => ['required', 'confirmed', 'min:1'],
+            'username' => ['required', 'string'],
+            'password' => ['required', 'confirmed', 'min:3'],
         ], [
-            'email.required' => 'Email wajib diisi.',
+            'username.required' => 'Username wajib diisi.',
             'password.required' => 'Password baru wajib diisi.',
-            'password.min' => 'Password minimal harus 1 karakter.',
+            'password.min' => 'Password minimal harus 3 karakter.',
             'password.confirmed' => 'Konfirmasi password tidak cocok.',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::where('username', $request->username)->first();
 
         if (!$user) {
-            return back()->withErrors(['email' => 'Email tersebut tidak terdaftar di dalam database.'])->withInput();
+            return back()->withErrors(['username' => 'Username tersebut tidak terdaftar di dalam database.'])->withInput();
         }
 
         $user->password = Hash::make($request->password);

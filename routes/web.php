@@ -116,6 +116,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ==========================================
     Route::middleware(['permission:user_management'])->group(function () {
         Route::get('/users', [UserController::class, 'index'])->name('user.index');
+        Route::post('/users', [UserController::class, 'store'])->name('user.store');
         Route::patch('/users/{id}/update-role', [UserController::class, 'updateRole'])->name('user.update-role');
         Route::put('/users/{id}', [UserController::class, 'update'])->name('user.update');
         Route::patch('/users/{id}/toggle-status', [UserController::class, 'toggleStatus'])->name('user.toggle-status');

@@ -4,7 +4,7 @@
             <i class="bi bi-key-fill fs-3"></i>
         </div>
         <h4 class="fw-bold text-dark mb-1">Reset Password Langsung</h4>
-        <p class="text-muted small">Masukkan email akun Anda dan tentukan password baru.</p>
+        <p class="text-muted small">Masukkan username akun Anda dan tentukan password baru.</p>
     </div>
 
     <!-- Alert Notifikasi Sukses -->
@@ -21,14 +21,14 @@
     <form method="POST" action="{{ url('/forgot-password') }}">
         @csrf
 
-        <!-- Email Address -->
+        <!-- Username -->
         <div class="mb-3">
-            <label for="email" class="form-label fw-semibold text-secondary small">Email Akun</label>
+            <label for="username" class="form-label fw-semibold text-secondary small">Username</label>
             <div class="input-group">
-                <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-envelope"></i></span>
-                <input id="email" type="email" class="form-control border-start-0 ps-0 @error('email') is-invalid @enderror" name="email" value="{{ old('email') }}" required autofocus placeholder="nama@email.com">
+                <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-person"></i></span>
+                <input id="username" type="text" class="form-control border-start-0 ps-0 @error('username') is-invalid @enderror" name="username" value="{{ old('username') }}" required autofocus autocomplete="username" placeholder="Masukkan username">
             </div>
-            <x-input-error :messages="$errors->get('email')" class="text-danger small mt-1" />
+            <x-input-error :messages="$errors->get('username')" class="text-danger small mt-1" />
         </div>
 
         <!-- New Password -->
@@ -36,8 +36,7 @@
             <label for="password" class="form-label fw-semibold text-secondary small">Password Baru</label>
             <div class="input-group">
                 <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-lock"></i></span>
-                <!-- Ditambahkan atribut minlength="1" -->
-                <input id="password" type="password" class="form-control border-start-0 ps-0 @error('password') is-invalid @enderror" name="password" required minlength="1" placeholder="••••••••">
+                <input id="password" type="password" class="form-control border-start-0 ps-0 @error('password') is-invalid @enderror" name="password" required minlength="3" placeholder="••••••••">
             </div>
             <x-input-error :messages="$errors->get('password')" class="text-danger small mt-1" />
         </div>
@@ -47,8 +46,7 @@
             <label for="password_confirmation" class="form-label fw-semibold text-secondary small">Konfirmasi Password Baru</label>
             <div class="input-group">
                 <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-lock-fill"></i></span>
-                <!-- Ditambahkan atribut minlength="1" -->
-                <input id="password_confirmation" type="password" class="form-control border-start-0 ps-0" name="password_confirmation" required minlength="1" placeholder="••••••••">
+                <input id="password_confirmation" type="password" class="form-control border-start-0 ps-0" name="password_confirmation" required minlength="3" placeholder="••••••••">
             </div>
         </div>
 
