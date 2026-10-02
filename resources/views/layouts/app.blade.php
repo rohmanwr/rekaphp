@@ -63,14 +63,14 @@
             --primary-bg: #f7f6fb;
             --surface: #ffffff;
             --surface-muted: #fbfaff;
-            --body-text: #292536;
-            --muted-text: #716b7d;
+            --body-text: #111111;
+            --muted-text: #5d5963;
             --border-color: #e7e2ef;
             --sidebar-bg: #ffffff;
-            --sidebar-text: #514a5f;
+            --sidebar-text: #17141d;
             --sidebar-muted: #827a90;
-            --accent: #7042bd;
-            --accent-soft: #f0eafd;
+            --accent: #1a47a8;
+            --accent-soft: #fce9f5;
             --accent-contrast: #ffffff;
             color-scheme: light;
         }
@@ -79,15 +79,15 @@
             --primary-bg: #17151d;
             --surface: #211e29;
             --surface-muted: #292532;
-            --body-text: #f2eff7;
-            --muted-text: #b3adbd;
+            --body-text: #f4f1f8;
+            --muted-text: #c2bacb;
             --border-color: #3d3748;
             --sidebar-bg: #211e29;
             --sidebar-text: #e9e3f2;
             --sidebar-muted: #aaa1b8;
-            --accent: #b79ae8;
-            --accent-soft: #383047;
-            --accent-contrast: #292536;
+            --accent: #1a47a8;
+            --accent-soft: #252e50;
+            --accent-contrast: #ffffff;
             color-scheme: dark;
         }
 
@@ -106,6 +106,7 @@
         body {
             background-color: var(--primary-bg);
             color: var(--body-text);
+            font-weight: 600;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             min-height: 100vh;
             /* Support Safe Area untuk HP Android Poni / Notch */
@@ -239,6 +240,17 @@
             display: none;
         }
 
+        .text-secondary {
+            color: var(--muted-text) !important;
+            font-weight: 600;
+        }
+
+        .form-control,
+        .form-select,
+        .btn {
+            font-weight: 600;
+        }
+
         /* Sidebar Backdrop / Overlay untuk Mobile */
         .sidebar-overlay {
             display: none;
@@ -293,9 +305,12 @@
         }
 
         [data-theme="dark"] .text-dark,
-        [data-theme="dark"] .text-secondary,
         [data-theme="dark"] .navbar-text {
             color: var(--body-text) !important;
+        }
+
+        [data-theme="dark"] .text-secondary {
+            color: var(--muted-text) !important;
         }
 
         [data-theme="dark"] .text-muted {
@@ -501,20 +516,6 @@
             };
             @endphp
 
-            <div class="p-3">
-                @if($canAccess('pembelian'))
-                @if(Route::has('pembelian.create'))
-                <a href="{{ route('pembelian.create') }}" class="btn btn-warning w-100 fw-bold text-dark shadow-sm py-2 d-flex align-items-center justify-content-center gap-2 rounded-3">
-                    <i class="bi bi-plus-circle-fill"></i> Tambah Pembelian
-                </a>
-                @else
-                <a href="{{ url('/pembelian/create') }}" class="btn btn-warning w-100 fw-bold text-dark shadow-sm py-2 d-flex align-items-center justify-content-center gap-2 rounded-3">
-                    <i class="bi bi-plus-circle-fill"></i> Tambah Pembelian
-                </a>
-                @endif
-                @endif
-            </div>
-
             <ul class="list-unstyled components">
                 <!-- Dashboard -->
                 <li>
@@ -646,7 +647,7 @@
                                 <div class="fw-bold mb-1">Warna tema</div>
                                 <div class="small text-muted mb-3">Pilih warna aksen aplikasi.</div>
                                 <div class="theme-color-swatches mb-3" role="group" aria-label="Pilihan warna tema">
-                                    <button type="button" class="theme-color-swatch" data-theme-color="#7042bd" style="background-color:#7042bd" aria-label="Ungu" title="Ungu" aria-pressed="false"></button>
+                                    <button type="button" class="theme-color-swatch" data-theme-color="#1a47a8" style="background-color:#1a47a8" aria-label="Warna default biru" title="Default · RGB 26, 71, 168" aria-pressed="false"></button>
                                     <button type="button" class="theme-color-swatch" data-theme-color="#16877d" style="background-color:#16877d" aria-label="Teal" title="Teal" aria-pressed="false"></button>
                                     <button type="button" class="theme-color-swatch" data-theme-color="#bd4969" style="background-color:#bd4969" aria-label="Merah muda" title="Merah muda" aria-pressed="false"></button>
                                     <button type="button" class="theme-color-swatch" data-theme-color="#315cb8" style="background-color:#315cb8" aria-label="Biru" title="Biru" aria-pressed="false"></button>
@@ -654,9 +655,9 @@
                                 </div>
                                 <div class="d-flex align-items-center justify-content-between gap-2">
                                     <label for="customThemeColor" class="small fw-semibold mb-0">Warna kustom</label>
-                                    <input id="customThemeColor" class="form-control form-control-color theme-custom-color" type="color" value="#7042bd" aria-label="Pilih warna kustom">
+                                    <input id="customThemeColor" class="form-control form-control-color theme-custom-color" type="color" value="#1a47a8" aria-label="Pilih warna kustom">
                                 </div>
-                                <button type="button" id="resetThemeColor" class="btn btn-sm btn-outline-secondary w-100 mt-3">Kembali ke ungu</button>
+                                <button type="button" id="resetThemeColor" class="btn btn-sm btn-outline-secondary w-100 mt-3">Kembali ke warna default</button>
                             </div>
                         </div>
                         @auth
@@ -742,8 +743,8 @@
 
             if (resetThemeColor) {
                 resetThemeColor.addEventListener('click', function() {
-                    window.setRekapAccent('#7042bd');
-                    updateAccentSelection('#7042bd');
+                    window.setRekapAccent('#1a47a8');
+                    updateAccentSelection('#1a47a8');
                 });
             }
 
