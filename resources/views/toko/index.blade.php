@@ -3,9 +3,83 @@
 @section('title', 'Master Data Toko')
 
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4">
+<style>
+    .toko-table td,
+    .toko-table th {
+        vertical-align: middle;
+    }
+
+    .toko-table td {
+        overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 767.98px) {
+        .toko-add-button {
+            width: 100%;
+        }
+
+        .toko-table {
+            display: block;
+            width: 100%;
+        }
+
+        .toko-table thead {
+            display: none;
+        }
+
+        .toko-table tbody {
+            display: block;
+            padding: .5rem;
+        }
+
+        .toko-table tbody tr {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .5rem;
+            margin-bottom: .5rem;
+            padding: .35rem .55rem;
+            border: 1px solid #adb5bd;
+            border-radius: .5rem;
+            background: #fff;
+        }
+
+        .toko-table tbody td {
+            display: block;
+            padding: .3rem;
+            border: 0;
+            text-align: left;
+        }
+
+        .toko-table tbody td[data-label="No"] {
+            display: none;
+        }
+
+        .toko-table tbody td[data-label="Nama Toko"] {
+            flex: 1;
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+
+        .toko-table tbody td[colspan] {
+            display: block;
+            text-align: center;
+        }
+
+        .toko-table .store-actions {
+            flex-wrap: nowrap;
+        }
+
+        .toko-table .store-actions .btn {
+            min-width: 38px;
+            min-height: 38px;
+        }
+    }
+</style>
+
+<div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3 mb-4">
     <h3 class="fw-bold text-dark mb-0">Master Data Toko</h3>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalTambahToko">
+    <button class="btn btn-primary toko-add-button" data-bs-toggle="modal" data-bs-target="#modalTambahToko">
         <i class="bi bi-plus-lg"></i> Tambah Toko
     </button>
 </div>
@@ -30,7 +104,7 @@
 
 <!-- Searchbar Filter -->
 <div class="card border-0 shadow-sm mb-4">
-    <div class="card-body">
+    <div class="card-body p-2 p-sm-3">
         <form id="searchForm" action="{{ route('toko.index') }}" method="GET">
             <div class="input-group">
                 <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
@@ -39,10 +113,9 @@
                     id="searchInput"
                     name="search"
                     class="form-control border-start-0 ps-0"
-                    placeholder="Cari berdasarkan Kode Toko, Nama Toko, atau Lokasi..."
+                    placeholder="Cari berdasarkan nama toko atau lokasi..."
                     value="{{ $search }}"
-                    autocomplete="off"
-                    autofocus>
+                    autocomplete="off">
                 @if(!empty($search))
                 <a href="{{ route('toko.index') }}" class="btn btn-outline-secondary" title="Reset Pencarian">
                     <i class="bi bi-x-lg"></i> Reset
@@ -57,46 +130,34 @@
 <div class="card border-0 shadow-sm">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover table-bordered align-middle mb-0 toko-table">
                 <thead class="table-light">
                     <tr>
                         <th class="text-center" style="width: 50px;">No</th>
-                        <th>Kode Toko</th>
                         <th>Nama Toko</th>
-                        <th>Lokasi Toko</th>
-                        <th>Link Toko</th>
                         <th class="text-center" style="width: 150px;">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($tokos as $index => $item)
                     <tr>
-                        <td class="text-center fw-semibold text-muted">
+                        <td class="text-center fw-semibold text-muted" data-label="No">
                             {{ $loop->iteration }}
                         </td>
-                        <td><span class="badge bg-dark fs-6">{{ $item->kode_toko }}</span></td>
-                        <td class="fw-semibold">{{ $item->nama_toko }}</td>
-                        <td><i class="bi bi-geo-alt text-danger"></i> {{ $item->lokasi_toko ?? '-' }}</td>
-                        <td>
-                            @if(!empty($item->link_toko))
-                            <a href="{{ $item->link_toko }}" target="_blank" class="btn btn-xs btn-outline-primary p-1 px-2 text-decoration-none" style="font-size: 0.8rem;">
-                                <i class="bi bi-box-arrow-up-right"></i> Kunjungi Link
-                            </a>
-                            @else
-                            <span class="text-muted small">-</span>
-                            @endif
-                        </td>
-                        <td class="text-center">
-                            <button type="button" class="btn btn-sm btn-warning text-white fw-semibold" data-bs-toggle="modal" data-bs-target="#modalEditToko{{ $item->id }}" title="Edit Data">
-                                <i class="bi bi-pencil-square"></i>
-                            </button>
-                            <form action="{{ route('toko.destroy', $item->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus toko ini?')">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-danger text-white fw-semibold" title="Hapus Data">
-                                    <i class="bi bi-trash"></i>
+                        <td class="fw-semibold" data-label="Nama Toko">{{ $item->nama_toko }}</td>
+                        <td class="text-center" data-label="Aksi">
+                            <div class="store-actions d-flex justify-content-center gap-2">
+                                <button type="button" class="btn btn-sm btn-warning text-white fw-semibold" data-bs-toggle="modal" data-bs-target="#modalEditToko{{ $item->id }}" title="Edit Data" aria-label="Edit toko {{ $item->nama_toko }}">
+                                    <i class="bi bi-pencil-square"></i>
                                 </button>
-                            </form>
+                                <form action="{{ route('toko.destroy', $item->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus toko ini?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-danger text-white fw-semibold" title="Hapus Data" aria-label="Hapus toko {{ $item->nama_toko }}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
 
@@ -113,15 +174,15 @@
                                     @method('PUT')
                                     <div class="modal-body">
                                         <div class="mb-3">
-                                            <label class="form-label fw-semibold">Kode Toko</label>
-                                            <input type="text" name="kode_toko" class="form-control" value="{{ old('kode_toko', $item->kode_toko) }}" required>
+                                            <label class="form-label fw-semibold">Kode Toko <span class="text-muted fw-normal">(Opsional)</span></label>
+                                            <input type="text" name="kode_toko" class="form-control" value="{{ old('kode_toko', $item->kode_toko) }}">
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label fw-semibold">Nama Toko</label>
                                             <input type="text" name="nama_toko" class="form-control" value="{{ old('nama_toko', $item->nama_toko) }}" required>
                                         </div>
                                         <div class="mb-3">
-                                            <label class="form-label fw-semibold">Lokasi Toko</label>
+                                            <label class="form-label fw-semibold">Lokasi Toko <span class="text-muted fw-normal">(Opsional)</span></label>
                                             <input type="text" name="lokasi_toko" class="form-control" value="{{ old('lokasi_toko', $item->lokasi_toko) }}" placeholder="Contoh: Jakarta Pusat / Mall Ambasador">
                                         </div>
                                         <div class="mb-3">
@@ -139,7 +200,7 @@
                     </div>
                     @empty
                     <tr>
-                        <td colspan="6" class="text-center py-4 text-muted">Tidak ada data toko.</td>
+                        <td colspan="3" class="text-center py-4 text-muted">Tidak ada data toko.</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -160,15 +221,15 @@
                 @csrf
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Kode Toko</label>
-                        <input type="text" name="kode_toko" class="form-control" placeholder="Contoh: TK-001 / TOKO-TKP" required>
+                        <label class="form-label fw-semibold">Kode Toko <span class="text-muted fw-normal">(Opsional)</span></label>
+                        <input type="text" name="kode_toko" class="form-control" placeholder="Contoh: TK-001 / TOKO-TKP">
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Nama Toko</label>
                         <input type="text" name="nama_toko" class="form-control" placeholder="Contoh: Toko Official Gadget" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Lokasi Toko</label>
+                        <label class="form-label fw-semibold">Lokasi Toko <span class="text-muted fw-normal">(Opsional)</span></label>
                         <input type="text" name="lokasi_toko" class="form-control" placeholder="Contoh: Jakarta Pusat / Mall Ambasador">
                     </div>
                     <div class="mb-3">

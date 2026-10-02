@@ -19,8 +19,7 @@ class TokoController extends Controller
                 ->orWhere('lokasi_toko', 'like', "%{$search}%");
         }
 
-        // Mengambil seluruh data tanpa batasan (menghilangkan paginate/limit)
-        $tokos = $query->latest()->get();
+        $tokos = $query->orderBy('nama_toko')->get();
 
         return view('toko.index', compact('tokos', 'search'));
     }
@@ -28,7 +27,7 @@ class TokoController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'kode_toko'   => 'required|string|max:255|unique:tokos,kode_toko',
+            'kode_toko'   => 'nullable|string|max:255|unique:tokos,kode_toko',
             'nama_toko'   => 'required|string|max:255',
             'lokasi_toko' => 'nullable|string|max:255',
             'link_toko'   => 'nullable|url|max:255',
@@ -44,7 +43,7 @@ class TokoController extends Controller
         $toko = Toko::findOrFail($id);
 
         $request->validate([
-            'kode_toko'   => 'required|string|max:255|unique:tokos,kode_toko,' . $id,
+            'kode_toko'   => 'nullable|string|max:255|unique:tokos,kode_toko,' . $id,
             'nama_toko'   => 'required|string|max:255',
             'lokasi_toko' => 'nullable|string|max:255',
             'link_toko'   => 'nullable|url|max:255',
