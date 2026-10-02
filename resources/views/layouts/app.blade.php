@@ -7,8 +7,49 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <!-- Theme Color untuk Navbar Browser HP/Android -->
-    <meta name="theme-color" content="#1e2229">
+    <meta name="theme-color" content="#f7f6fb">
+
+    <script>
+        try {
+            document.documentElement.setAttribute('data-theme', localStorage.getItem('rekap-theme') === 'dark' ? 'dark' : 'light');
+        } catch (error) {
+            document.documentElement.setAttribute('data-theme', 'light');
+        }
+
+        window.setRekapAccent = function(color, persist) {
+            if (!/^#[0-9a-f]{6}$/i.test(color)) return;
+
+            var red = parseInt(color.slice(1, 3), 16);
+            var green = parseInt(color.slice(3, 5), 16);
+            var blue = parseInt(color.slice(5, 7), 16);
+            var channels = [red, green, blue].map(function(channel) {
+                channel /= 255;
+                return channel <= 0.04045 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+            });
+            var luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+            var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            var target = isDark ? [41, 37, 50] : [255, 255, 255];
+            var mix = isDark ? 0.25 : 0.12;
+            var softColor = [red, green, blue].map(function(channel, index) {
+                return Math.round(channel * mix + target[index] * (1 - mix));
+            });
+
+            document.documentElement.style.setProperty('--accent', color);
+            document.documentElement.style.setProperty('--accent-soft', 'rgb(' + softColor.join(', ') + ')');
+            document.documentElement.style.setProperty('--accent-contrast', luminance > 0.179 ? '#292536' : '#ffffff');
+
+            if (persist !== false) {
+                try {
+                    localStorage.setItem('rekap-accent', color);
+                } catch (error) {}
+            }
+        };
+
+        try {
+            var savedAccent = localStorage.getItem('rekap-accent');
+            if (savedAccent) window.setRekapAccent(savedAccent, false);
+        } catch (error) {}
+    </script>
 
     <title>@yield('title', 'Rekap Bisnis HP')</title>
 
@@ -19,7 +60,35 @@
     <style>
         :root {
             --sidebar-width: 270px;
-            --primary-bg: #f4f6f9;
+            --primary-bg: #f7f6fb;
+            --surface: #ffffff;
+            --surface-muted: #fbfaff;
+            --body-text: #292536;
+            --muted-text: #716b7d;
+            --border-color: #e7e2ef;
+            --sidebar-bg: #ffffff;
+            --sidebar-text: #514a5f;
+            --sidebar-muted: #827a90;
+            --accent: #7042bd;
+            --accent-soft: #f0eafd;
+            --accent-contrast: #ffffff;
+            color-scheme: light;
+        }
+
+        [data-theme="dark"] {
+            --primary-bg: #17151d;
+            --surface: #211e29;
+            --surface-muted: #292532;
+            --body-text: #f2eff7;
+            --muted-text: #b3adbd;
+            --border-color: #3d3748;
+            --sidebar-bg: #211e29;
+            --sidebar-text: #e9e3f2;
+            --sidebar-muted: #aaa1b8;
+            --accent: #b79ae8;
+            --accent-soft: #383047;
+            --accent-contrast: #292536;
+            color-scheme: dark;
         }
 
         /* Mencegah Scroll Horisontal di Seluruh Halaman HP */
@@ -36,6 +105,7 @@
 
         body {
             background-color: var(--primary-bg);
+            color: var(--body-text);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             min-height: 100vh;
             /* Support Safe Area untuk HP Android Poni / Notch */
@@ -58,10 +128,9 @@
             width: var(--sidebar-width);
             min-width: var(--sidebar-width);
             max-width: var(--sidebar-width);
-            background: #1e2229;
-            background: -webkit-linear-gradient(180deg, #1e2229 0%, #111315 100%);
-            background: linear-gradient(180deg, #1e2229 0%, #111315 100%);
-            color: #fff;
+            background: var(--sidebar-bg);
+            color: var(--sidebar-text);
+            border-right: 1px solid var(--border-color);
             -webkit-transition: all 0.3s ease;
             transition: all 0.3s ease;
             z-index: 1050;
@@ -72,13 +141,13 @@
             -webkit-box-direction: normal;
             -ms-flex-direction: column;
             flex-direction: column;
-            box-shadow: 4px 0 15px rgba(0, 0, 0, 0.05);
+            box-shadow: 4px 0 18px rgba(44, 31, 70, 0.06);
         }
 
         #sidebar .sidebar-header {
             padding: 18px 16px;
-            background: rgba(0, 0, 0, 0.2);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            background: var(--surface-muted);
+            border-bottom: 1px solid var(--border-color);
         }
 
         #sidebar ul.components {
@@ -100,7 +169,7 @@
             font-size: 0.7rem;
             text-transform: uppercase;
             font-weight: 700;
-            color: #8b95a5;
+            color: var(--sidebar-muted);
             letter-spacing: 0.8px;
         }
 
@@ -117,7 +186,7 @@
             -webkit-box-align: center;
             -ms-flex-align: center;
             align-items: center;
-            color: #b0c4de;
+            color: var(--sidebar-text);
             text-decoration: none;
             border-radius: 8px;
             -webkit-transition: all 0.2s ease;
@@ -127,15 +196,15 @@
 
         #sidebar ul li a:hover,
         #sidebar ul li a:active {
-            color: #ffffff;
-            background: rgba(255, 255, 255, 0.08);
+            color: var(--accent);
+            background: var(--accent-soft);
         }
 
         #sidebar ul li a.active {
-            color: #ffffff;
-            background: #0d6efd;
+            color: var(--accent-contrast);
+            background: var(--accent);
             font-weight: 600;
-            box-shadow: 0 4px 12px rgba(13, 110, 253, 0.35);
+            box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 24%, transparent);
         }
 
         #sidebar ul li a i {
@@ -195,6 +264,154 @@
             -webkit-overflow-scrolling: touch;
             border-radius: 8px;
             margin-bottom: 1rem;
+        }
+
+        [data-theme="dark"] #content {
+            color: var(--body-text);
+        }
+
+        [data-theme="dark"] .navbar,
+        [data-theme="dark"] .card,
+        [data-theme="dark"] .modal-content,
+        [data-theme="dark"] .dropdown-menu,
+        [data-theme="dark"] .dashboard-panel,
+        [data-theme="dark"] .dashboard-toolbar,
+        [data-theme="dark"] .dashboard-kpi {
+            color: var(--body-text) !important;
+            background-color: var(--surface) !important;
+            border-color: var(--border-color) !important;
+        }
+
+        [data-theme="dark"] .bg-white,
+        [data-theme="dark"] .bg-light,
+        [data-theme="dark"] .table-light,
+        [data-theme="dark"] .modal-header,
+        [data-theme="dark"] .modal-footer {
+            color: var(--body-text) !important;
+            background-color: var(--surface-muted) !important;
+            border-color: var(--border-color) !important;
+        }
+
+        [data-theme="dark"] .text-dark,
+        [data-theme="dark"] .text-secondary,
+        [data-theme="dark"] .navbar-text {
+            color: var(--body-text) !important;
+        }
+
+        [data-theme="dark"] .text-muted {
+            color: var(--muted-text) !important;
+        }
+
+        [data-theme="dark"] .border,
+        [data-theme="dark"] .border-bottom,
+        [data-theme="dark"] .border-top {
+            border-color: var(--border-color) !important;
+        }
+
+        [data-theme="dark"] .form-control,
+        [data-theme="dark"] .form-select,
+        [data-theme="dark"] .input-group-text {
+            color: var(--body-text);
+            background-color: #191720;
+            border-color: var(--border-color);
+        }
+
+        [data-theme="dark"] .form-control::placeholder {
+            color: var(--muted-text);
+        }
+
+        [data-theme="dark"] .table {
+            --bs-table-color: var(--body-text);
+            --bs-table-bg: var(--surface);
+            --bs-table-border-color: var(--border-color);
+            --bs-table-hover-color: var(--body-text);
+            --bs-table-hover-bg: var(--surface-muted);
+        }
+
+        [data-theme="dark"] .dropdown-item {
+            color: var(--body-text);
+        }
+
+        [data-theme="dark"] .dropdown-item:hover {
+            background-color: var(--accent-soft);
+        }
+
+        [data-theme="dark"] .btn-light {
+            color: var(--body-text);
+            background-color: var(--surface-muted);
+            border-color: var(--border-color);
+        }
+
+        [data-theme="dark"] .sidebar-overlay {
+            background: rgba(15, 12, 20, 0.58);
+        }
+
+        .btn-primary {
+            color: var(--accent-contrast);
+            background-color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .btn-primary:hover,
+        .btn-primary:focus {
+            color: var(--accent-contrast);
+            background-color: color-mix(in srgb, var(--accent) 86%, #000000);
+            border-color: color-mix(in srgb, var(--accent) 86%, #000000);
+        }
+
+        .btn-outline-primary {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .btn-outline-primary:hover,
+        .btn-outline-primary:focus {
+            color: var(--accent-contrast);
+            background-color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .text-primary {
+            color: var(--accent) !important;
+        }
+
+        .bg-primary {
+            background-color: var(--accent) !important;
+        }
+
+        .border-primary {
+            border-color: var(--accent) !important;
+        }
+
+        .theme-color-menu {
+            width: 248px;
+            padding: 1rem;
+        }
+
+        .theme-color-swatches {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: .6rem;
+        }
+
+        .theme-color-swatch {
+            width: 34px;
+            height: 34px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 0 0 1px var(--border-color);
+        }
+
+        .theme-color-swatch[aria-pressed="true"] {
+            outline: 2px solid var(--body-text);
+            outline-offset: 2px;
+        }
+
+        .theme-custom-color {
+            width: 48px;
+            height: 38px;
+            padding: .2rem;
+            cursor: pointer;
         }
 
         /* Optimasi Tampilan Android & Tablet (< 992px) */
@@ -263,8 +480,8 @@
         <nav id="sidebar">
             <div class="sidebar-header d-flex align-items-center justify-content-between">
                 <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-phone-vibrate text-warning fs-4"></i>
-                    <h5 class="mb-0 fw-bold text-white tracking-wide fs-6">Rohman Store</h5>
+                    <i class="bi bi-phone-vibrate text-primary fs-4"></i>
+                    <a href="{{ route('pembelian.index') }}" class="mb-0 fw-bold text-decoration-none tracking-wide fs-6" style="color: var(--sidebar-text);">Rohman Store</a>
                 </div>
                 <button type="button" id="closeSidebarBtn" class="btn btn-link text-white-50 d-lg-none p-1 border-0 text-decoration-none" aria-label="Tutup Menu">
                     <i class="bi bi-x-lg fs-5"></i>
@@ -406,45 +623,72 @@
         <div id="content">
             <!-- Top Navbar Header -->
             <nav class="navbar navbar-expand-lg navbar-light bg-white rounded-3 shadow-sm mb-3 px-2 py-2">
-                <div class="container-fluid p-0 d-flex align-items-center justify-content-between">
+                <div class="container-fluid p-0 d-flex align-items-center justify-content-between gap-2">
                     <div class="d-flex align-items-center gap-2">
                         <button type="button" id="toggleSidebarBtn" class="btn btn-light border p-2 me-1" title="Buka Menu" aria-label="Toggle Menu">
                             <i class="bi bi-list fs-5"></i>
                         </button>
-                        <span class="navbar-text fw-semibold text-dark small-mobile">
+                        <a href="{{ route('pembelian.index') }}" class="navbar-brand d-lg-none fw-bold text-decoration-none mb-0" style="color: var(--accent);">Rohman Store</a>
+                        <span class="navbar-text fw-semibold text-dark small-mobile d-none d-lg-inline">
                             Halo, <strong class="text-primary">{{ Auth::user()->name ?? 'Admin' }}</strong>
                         </span>
                     </div>
 
-                    @auth
-                    <div class="dropdown user-dropdown">
-                        <button class="btn btn-light dropdown-toggle d-flex align-items-center gap-1 border py-1.5 px-2.5 rounded-pill" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-person-circle fs-5 text-secondary"></i>
-                            <span class="fw-semibold small d-none d-sm-inline">{{ Auth::user()->name }}</span>
-                            <i class="bi bi-chevron-down small text-muted"></i>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" id="themeToggle" class="btn btn-light border p-2" aria-label="Aktifkan mode gelap" title="Aktifkan mode gelap">
+                            <i id="themeToggleIcon" class="bi bi-moon-stars-fill"></i>
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2 rounded-3">
-                            @if(Route::has('profile.edit'))
-                            <li>
-                                <a class="dropdown-item py-2" href="{{ route('profile.edit') }}">
-                                    <i class="bi bi-gear me-2 text-muted"></i> Pengaturan Profil
-                                </a>
-                            </li>
-                            <li>
-                                <hr class="dropdown-divider">
-                            </li>
-                            @endif
-                            <li>
-                                <form method="POST" action="{{ route('logout') }}">
-                                    @csrf
-                                    <button type="submit" class="dropdown-item py-2 text-danger fw-semibold">
-                                        <i class="bi bi-box-arrow-right me-2"></i> Keluar (Logout)
-                                    </button>
-                                </form>
-                            </li>
-                        </ul>
+                        <div class="dropdown">
+                            <button type="button" id="themeColorMenuToggle" class="btn btn-light border p-2" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Ubah warna tema" title="Ubah warna tema">
+                                <i class="bi bi-palette2"></i>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end theme-color-menu" aria-labelledby="themeColorMenuToggle">
+                                <div class="fw-bold mb-1">Warna tema</div>
+                                <div class="small text-muted mb-3">Pilih warna aksen aplikasi.</div>
+                                <div class="theme-color-swatches mb-3" role="group" aria-label="Pilihan warna tema">
+                                    <button type="button" class="theme-color-swatch" data-theme-color="#7042bd" style="background-color:#7042bd" aria-label="Ungu" title="Ungu" aria-pressed="false"></button>
+                                    <button type="button" class="theme-color-swatch" data-theme-color="#16877d" style="background-color:#16877d" aria-label="Teal" title="Teal" aria-pressed="false"></button>
+                                    <button type="button" class="theme-color-swatch" data-theme-color="#bd4969" style="background-color:#bd4969" aria-label="Merah muda" title="Merah muda" aria-pressed="false"></button>
+                                    <button type="button" class="theme-color-swatch" data-theme-color="#315cb8" style="background-color:#315cb8" aria-label="Biru" title="Biru" aria-pressed="false"></button>
+                                    <button type="button" class="theme-color-swatch" data-theme-color="#c36a24" style="background-color:#c36a24" aria-label="Oranye" title="Oranye" aria-pressed="false"></button>
+                                </div>
+                                <div class="d-flex align-items-center justify-content-between gap-2">
+                                    <label for="customThemeColor" class="small fw-semibold mb-0">Warna kustom</label>
+                                    <input id="customThemeColor" class="form-control form-control-color theme-custom-color" type="color" value="#7042bd" aria-label="Pilih warna kustom">
+                                </div>
+                                <button type="button" id="resetThemeColor" class="btn btn-sm btn-outline-secondary w-100 mt-3">Kembali ke ungu</button>
+                            </div>
+                        </div>
+                        @auth
+                        <div class="dropdown user-dropdown">
+                            <button class="btn btn-light dropdown-toggle d-flex align-items-center gap-1 border py-1.5 px-2.5 rounded-pill" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-person-circle fs-5 text-secondary"></i>
+                                <span class="fw-semibold small d-none d-sm-inline">{{ Auth::user()->name }}</span>
+                                <i class="bi bi-chevron-down small text-muted"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2 rounded-3">
+                                @if(Route::has('profile.edit'))
+                                <li>
+                                    <a class="dropdown-item py-2" href="{{ route('profile.edit') }}">
+                                        <i class="bi bi-gear me-2 text-muted"></i> Pengaturan Profil
+                                    </a>
+                                </li>
+                                <li>
+                                    <hr class="dropdown-divider">
+                                </li>
+                                @endif
+                                <li>
+                                    <form method="POST" action="{{ route('logout') }}">
+                                        @csrf
+                                        <button type="submit" class="dropdown-item py-2 text-danger fw-semibold">
+                                            <i class="bi bi-box-arrow-right me-2"></i> Keluar (Logout)
+                                        </button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </div>
+                        @endauth
                     </div>
-                    @endauth
                 </div>
             </nav>
 
@@ -465,6 +709,79 @@
             var toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
             var closeSidebarBtn = document.getElementById('closeSidebarBtn');
             var sidebarOverlay = document.getElementById('sidebarOverlay');
+            var themeToggle = document.getElementById('themeToggle');
+            var themeToggleIcon = document.getElementById('themeToggleIcon');
+            var themeColor = document.querySelector('meta[name="theme-color"]');
+            var customThemeColor = document.getElementById('customThemeColor');
+            var colorSwatches = document.querySelectorAll('[data-theme-color]');
+            var resetThemeColor = document.getElementById('resetThemeColor');
+
+            function updateAccentSelection(color) {
+                colorSwatches.forEach(function(swatch) {
+                    swatch.setAttribute('aria-pressed', swatch.dataset.themeColor.toLowerCase() === color.toLowerCase() ? 'true' : 'false');
+                });
+                if (customThemeColor) customThemeColor.value = color;
+            }
+
+            var initialAccent = document.documentElement.style.getPropertyValue('--accent').trim() || getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+            updateAccentSelection(initialAccent);
+
+            colorSwatches.forEach(function(swatch) {
+                swatch.addEventListener('click', function() {
+                    window.setRekapAccent(this.dataset.themeColor);
+                    updateAccentSelection(this.dataset.themeColor);
+                });
+            });
+
+            if (customThemeColor) {
+                customThemeColor.addEventListener('input', function() {
+                    window.setRekapAccent(this.value);
+                    updateAccentSelection(this.value);
+                });
+            }
+
+            if (resetThemeColor) {
+                resetThemeColor.addEventListener('click', function() {
+                    window.setRekapAccent('#7042bd');
+                    updateAccentSelection('#7042bd');
+                });
+            }
+
+            function updateThemeToggle(theme) {
+                var isDark = theme === 'dark';
+                themeToggleIcon.className = isDark ? 'bi bi-sun-fill' : 'bi bi-moon-stars-fill';
+                themeToggle.setAttribute('aria-label', isDark ? 'Aktifkan mode terang' : 'Aktifkan mode gelap');
+                themeToggle.setAttribute('title', isDark ? 'Aktifkan mode terang' : 'Aktifkan mode gelap');
+                if (themeColor) themeColor.setAttribute('content', isDark ? '#17151d' : '#f7f6fb');
+            }
+
+            var currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+            updateThemeToggle(currentTheme);
+
+            if (themeToggle) {
+                themeToggle.addEventListener('click', function() {
+                    currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    document.documentElement.setAttribute('data-theme', currentTheme);
+                    try {
+                        localStorage.setItem('rekap-theme', currentTheme);
+                    } catch (error) {}
+
+                    var savedAccent = '';
+                    try {
+                        savedAccent = localStorage.getItem('rekap-accent') || '';
+                    } catch (error) {}
+
+                    if (savedAccent) {
+                        window.setRekapAccent(savedAccent, false);
+                    } else {
+                        document.documentElement.style.removeProperty('--accent');
+                        document.documentElement.style.removeProperty('--accent-soft');
+                        document.documentElement.style.removeProperty('--accent-contrast');
+                    }
+
+                    updateThemeToggle(currentTheme);
+                });
+            }
 
             function openSidebar() {
                 if (sidebar) sidebar.classList.add('active');
