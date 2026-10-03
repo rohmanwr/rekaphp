@@ -46,6 +46,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ==========================================
     Route::middleware(['permission:pembelian'])->group(function () {
         Route::get('/pembelian', [PembelianController::class, 'index'])->name('pembelian.index');
+        Route::get('/pembelian/lampiran/{filename}', [PembelianController::class, 'lampiran'])
+            ->where('filename', '[A-Za-z0-9._-]+')
+            ->name('pembelian.lampiran');
         Route::get('/pembelian/create', [PembelianController::class, 'create'])->name('pembelian.create');
         Route::post('/pembelian', [PembelianController::class, 'store'])->name('pembelian.store');
 

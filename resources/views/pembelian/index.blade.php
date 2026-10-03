@@ -5,9 +5,6 @@
 @section('content')
 <!-- Library Scanner Barcode HTML5 -->
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-<!-- Library Panzoom & Hammer.js untuk fitur Zoom dan Geser Gambar -->
-<script src="https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
-
 <!-- Header & Navigation Bar -->
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
     <h3 class="fw-bold text-dark mb-0">Rekap Pembelian</h3>
@@ -246,7 +243,7 @@
                                     @foreach($item->file_lampiran as $idx => $filePath)
                                     @php
                                     $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
-                                    $fileUrl = asset('storage/' . $filePath);
+                                    $fileUrl = route('pembelian.lampiran', ['filename' => basename($filePath)], false);
                                     @endphp
                                     <button type="button"
                                         class="btn btn-xs btn-outline-info p-1 px-2 text-decoration-none preview-btn"
@@ -358,7 +355,7 @@
                     @foreach($item->file_lampiran as $idx => $filePath)
                     @php
                     $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
-                    $fileUrl = asset('storage/' . $filePath);
+                    $fileUrl = route('pembelian.lampiran', ['filename' => basename($filePath)], false);
                     @endphp
                     <button type="button" class="btn btn-xs btn-outline-info p-1 px-2 text-decoration-none preview-btn" style="font-size: 0.75rem;" data-url="{{ $fileUrl }}" data-ext="{{ $ext }}" data-title="Lampiran {{ $idx + 1 }}">
                         <i class="bi {{ $ext == 'pdf' ? 'bi-file-earmark-pdf-fill text-danger' : 'bi-file-earmark-image-fill text-primary' }}"></i> File {{ $idx + 1 }}
@@ -497,10 +494,10 @@
                 <h5 class="modal-title fw-bold fs-6">Edit Rekap Pembelian ({{ $item->kode_otomatis }})</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" data-scanner-action="stop" data-item-id="{{ $item->id }}"></button>
             </div>
-            <form action="{{ route('pembelian.update', $item->id) }}" method="POST" enctype="multipart/form-data" class="form-pembelian purchase-titipan-form">
+            <form action="{{ route('pembelian.update', $item->id) }}" method="POST" enctype="multipart/form-data" class="form-pembelian purchase-titipan-form d-flex flex-column flex-grow-1" style="min-height: 0;">
                 @csrf
                 @method('PUT')
-                <div class="modal-body">
+                <div class="modal-body flex-grow-1 overflow-y-auto">
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Kode Transaksi Manual (Opsional)</label>
@@ -650,7 +647,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer flex-shrink-0">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal" data-scanner-action="stop" data-item-id="{{ $item->id }}">Batal</button>
                     <button type="submit" class="btn btn-warning text-white fw-semibold">Update Pembelian</button>
                 </div>
@@ -675,9 +672,13 @@
                 </div>
             </div>
             <div class="modal-body p-0 position-relative overflow-hidden d-flex justify-content-center align-items-center" style="height: 70vh; background-color: #121212;">
-                <!-- Kontainer Gambar dengan Panzoom -->
+                <!-- Kontainer gambar yang dapat di-zoom -->
                 <div id="imagePreviewContainer" class="w-100 h-100 d-flex justify-content-center align-items-center position-relative">
-                    <img id="previewImageElement" src="" alt="Preview Lampiran" class="d-none" style="max-height: 100%; max-width: 100%; object-fit: contain; cursor: grab;" />
+                    <img id="previewImageElement" src="" alt="Preview Lampiran" class="d-none" style="max-height: 100%; max-width: 100%; object-fit: contain; cursor: grab; touch-action: none;" />
+                    <div id="imagePreviewError" class="d-none text-center p-3">
+                        <p class="mb-2">Gambar tidak dapat ditampilkan.</p>
+                        <a id="openImageFallback" href="#" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light">Buka file di tab baru</a>
+                    </div>
                 </div>
                 <!-- Kontainer PDF Viewer -->
                 <div id="pdfPreviewContainer" class="w-100 h-100 d-none">
@@ -858,7 +859,21 @@
 
 <script>
     let activeScanners = {};
-    let panzoomInstance = null;
+    let previewIsImage = false;
+    let previewImageScale = 1;
+    let previewImageOffsetX = 0;
+    let previewImageOffsetY = 0;
+    let previewImageDrag = null;
+
+    function setPreviewImageScale(scale) {
+        const previewImage = document.getElementById('previewImageElement');
+        previewImageScale = Math.min(5, Math.max(1, scale));
+        if (previewImageScale === 1) {
+            previewImageOffsetX = 0;
+            previewImageOffsetY = 0;
+        }
+        previewImage.style.transform = `translate3d(${previewImageOffsetX}px, ${previewImageOffsetY}px, 0) scale(${previewImageScale})`;
+    }
 
     // Fungsi Pengecekan IMEI Duplikat pada Rekap Pembelian
     function jalankanCekDuplikatImeiIndex() {
@@ -1077,60 +1092,98 @@
             }
         });
 
-        // Panzoom Init
-        const previewImage = document.getElementById('previewImageElement');
-        if (previewImage) {
-            panzoomInstance = Panzoom(previewImage, {
-                maxScale: 5,
-                minScale: 0.5,
-                contain: 'outside',
-                startScale: 1,
-                cursor: 'grab'
-            });
-
-            previewImage.parentElement.addEventListener('wheel', panzoomInstance.zoomWithWheel);
-
-            document.getElementById('btnZoomIn').addEventListener('click', () => panzoomInstance.zoomIn());
-            document.getElementById('btnZoomOut').addEventListener('click', () => panzoomInstance.zoomOut());
-            document.getElementById('btnResetZoom').addEventListener('click', () => {
-                panzoomInstance.reset();
-            });
-        }
-
         // File Preview
-        document.querySelectorAll('.preview-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const url = this.getAttribute('data-url');
-                const ext = this.getAttribute('data-ext');
-                const title = this.getAttribute('data-title');
+        document.addEventListener('click', function(event) {
+            const previewButton = event.target.closest('.preview-btn');
+            if (!previewButton) return;
 
-                document.getElementById('previewModalTitle').textContent = title;
-                document.getElementById('btnDownloadFile').setAttribute('href', url);
+            const url = previewButton.dataset.url;
+            const ext = previewButton.dataset.ext;
+            const title = previewButton.dataset.title;
 
-                const imgContainer = document.getElementById('imagePreviewContainer');
-                const pdfContainer = document.getElementById('pdfPreviewContainer');
-                const imgElement = document.getElementById('previewImageElement');
-                const pdfElement = document.getElementById('previewPdfElement');
+            const previewModalElement = document.getElementById('modalFilePreview');
+            const previewModal = bootstrap.Modal.getOrCreateInstance(previewModalElement);
+            const downloadButton = document.getElementById('btnDownloadFile');
+            const imgContainer = document.getElementById('imagePreviewContainer');
+            const pdfContainer = document.getElementById('pdfPreviewContainer');
+            const imgElement = document.getElementById('previewImageElement');
+            const pdfElement = document.getElementById('previewPdfElement');
+            const imageError = document.getElementById('imagePreviewError');
+            const imageFallback = document.getElementById('openImageFallback');
 
-                if (ext === 'pdf') {
-                    imgContainer.classList.add('d-none');
-                    imgElement.classList.add('d-none');
-                    pdfContainer.classList.remove('d-none');
-                    pdfElement.setAttribute('src', url);
-                } else {
-                    pdfContainer.classList.add('d-none');
-                    pdfElement.setAttribute('src', '');
-                    imgContainer.classList.remove('d-none');
-                    imgElement.classList.remove('d-none');
+            document.getElementById('previewModalTitle').textContent = title || 'Preview Lampiran';
+            downloadButton.href = url;
+            imageFallback.href = url;
+            imgElement.onerror = function() {
+                imgElement.classList.add('d-none');
+                imageError.classList.remove('d-none');
+            };
 
-                    imgElement.setAttribute('src', url);
-                    if (panzoomInstance) panzoomInstance.reset();
-                }
+            if (ext === 'pdf') {
+                previewIsImage = false;
+                imgContainer.classList.add('d-none');
+                imgElement.classList.add('d-none');
+                imageError.classList.add('d-none');
+                pdfContainer.classList.remove('d-none');
+                pdfElement.src = url;
+            } else {
+                pdfContainer.classList.add('d-none');
+                pdfElement.src = '';
+                imgContainer.classList.remove('d-none');
+                imageError.classList.add('d-none');
+                imgElement.classList.remove('d-none');
+                previewIsImage = true;
+                imgElement.style.transition = 'none';
+                imgElement.style.transformOrigin = 'center center';
+                imgElement.onload = function() {
+                    setPreviewImageScale(1);
+                    requestAnimationFrame(() => {
+                        imgElement.style.transition = 'transform 150ms ease-out';
+                    });
+                };
+                setPreviewImageScale(1);
+                imgElement.src = url;
+            }
 
-                const previewModal = new bootstrap.Modal(document.getElementById('modalFilePreview'));
-                previewModal.show();
-            });
+            previewModal.show();
         });
+
+        const previewImage = document.getElementById('previewImageElement');
+        previewImage.parentElement.addEventListener('wheel', event => {
+            if (!previewIsImage) return;
+            event.preventDefault();
+            setPreviewImageScale(previewImageScale + (event.deltaY < 0 ? 0.25 : -0.25));
+        }, { passive: false });
+        previewImage.addEventListener('pointerdown', event => {
+            if (!previewIsImage || previewImageScale <= 1) return;
+            event.preventDefault();
+            previewImageDrag = {
+                pointerId: event.pointerId,
+                startX: event.clientX,
+                startY: event.clientY,
+                offsetX: previewImageOffsetX,
+                offsetY: previewImageOffsetY
+            };
+            previewImage.setPointerCapture(event.pointerId);
+            previewImage.style.cursor = 'grabbing';
+        });
+        previewImage.addEventListener('pointermove', event => {
+            if (!previewImageDrag || previewImageDrag.pointerId !== event.pointerId) return;
+            previewImageOffsetX = previewImageDrag.offsetX + event.clientX - previewImageDrag.startX;
+            previewImageOffsetY = previewImageDrag.offsetY + event.clientY - previewImageDrag.startY;
+            previewImage.style.transform = `translate3d(${previewImageOffsetX}px, ${previewImageOffsetY}px, 0) scale(${previewImageScale})`;
+        });
+        const stopPreviewImageDrag = event => {
+            if (!previewImageDrag || previewImageDrag.pointerId !== event.pointerId) return;
+            previewImageDrag = null;
+            previewImage.style.cursor = 'grab';
+        };
+        previewImage.addEventListener('pointerup', stopPreviewImageDrag);
+        previewImage.addEventListener('pointercancel', stopPreviewImageDrag);
+        previewImage.addEventListener('lostpointercapture', stopPreviewImageDrag);
+        document.getElementById('btnZoomIn').addEventListener('click', () => setPreviewImageScale(previewImageScale + 0.5));
+        document.getElementById('btnZoomOut').addEventListener('click', () => setPreviewImageScale(previewImageScale - 0.5));
+        document.getElementById('btnResetZoom').addEventListener('click', () => setPreviewImageScale(1));
 
         // 1. KLIK TOMBOL: Salin Rekap Total Barang
         const btnSalinRekapBarang = document.getElementById('btnSalinRekapBarang');

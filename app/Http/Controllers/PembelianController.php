@@ -61,6 +61,20 @@ class PembelianController extends Controller
         return view('pembelian.index', compact('pembelians', 'barangs', 'tokos', 'devices', 'search', 'selectedStatus'));
     }
 
+    public function lampiran(string $filename)
+    {
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        abort_unless(in_array($extension, ['jpg', 'jpeg', 'png', 'pdf'], true), 404);
+
+        $path = 'lampiran_pembelian/' . $filename;
+        $disk = Storage::disk('public');
+        abort_unless($disk->exists($path), 404);
+
+        return $disk->response($path, $filename, [
+            'X-Content-Type-Options' => 'nosniff',
+        ], 'inline');
+    }
+
     public function create()
     {
         $barangs = Barang::orderBy('nama_barang', 'asc')->get();
