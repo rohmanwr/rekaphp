@@ -13,6 +13,50 @@
         overflow-wrap: anywhere;
     }
 
+    .toko-detail-toggle {
+        min-width: 88px;
+        border-radius: 999px;
+    }
+
+    .toko-detail-toggle i {
+        display: inline-block;
+        transition: transform .25s ease;
+    }
+
+    .toko-detail-toggle[aria-expanded="true"] i {
+        transform: rotate(180deg);
+    }
+
+    .toko-detail-row>td {
+        padding: 0 !important;
+        border-top: 0;
+    }
+
+    .toko-detail-panel {
+        margin: .25rem .75rem .75rem;
+        padding: .9rem 1rem;
+        border: 1px solid #dce2e6;
+        border-radius: .65rem;
+        background: #f8f9fa;
+        box-shadow: 0 3px 10px rgba(33, 37, 41, .06);
+    }
+
+    .toko-detail-item {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .toko-detail-item a {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .toko-detail-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 1rem;
+    }
+
     @media (max-width: 767.98px) {
         .toko-add-button {
             width: 100%;
@@ -32,33 +76,43 @@
             padding: .5rem;
         }
 
-        .toko-table tbody tr {
-            display: flex;
+        .toko-table tbody tr.toko-main-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto auto;
+            grid-template-areas: "name detail actions";
             align-items: center;
-            justify-content: space-between;
-            gap: .5rem;
-            margin-bottom: .5rem;
-            padding: .35rem .55rem;
+            gap: .4rem;
+            margin-bottom: 0;
+            padding: .55rem;
             border: 1px solid #adb5bd;
-            border-radius: .5rem;
+            border-radius: .65rem;
             background: #fff;
         }
 
         .toko-table tbody td {
             display: block;
-            padding: .3rem;
+            min-width: 0;
+            padding: .2rem !important;
             border: 0;
             text-align: left;
         }
 
-        .toko-table tbody td[data-label="No"] {
+        .toko-table tbody tr.toko-main-row td[data-label="No"] {
             display: none;
         }
 
-        .toko-table tbody td[data-label="Nama Toko"] {
-            flex: 1;
-            min-width: 0;
+        .toko-table tbody tr.toko-main-row td[data-label="Nama Toko"] {
+            grid-area: name;
             overflow-wrap: anywhere;
+        }
+
+        .toko-table tbody tr.toko-main-row td[data-label="Detail"] {
+            grid-area: detail;
+            white-space: nowrap;
+        }
+
+        .toko-table tbody tr.toko-main-row td[data-label="Aksi"] {
+            grid-area: actions;
         }
 
         .toko-table tbody td[colspan] {
@@ -66,13 +120,44 @@
             text-align: center;
         }
 
+        .toko-table tbody tr.toko-detail-row {
+            display: block;
+            margin-bottom: .75rem;
+        }
+
+        .toko-table tbody tr.toko-detail-row>td {
+            display: block;
+            width: 100%;
+        }
+
+        .toko-detail-panel {
+            margin: .25rem 0 0;
+            padding: .8rem;
+            border: 1px solid #dce2e6;
+            border-radius: .65rem;
+            background: #fff;
+            box-shadow: none;
+        }
+
         .toko-table .store-actions {
             flex-wrap: nowrap;
+            gap: .35rem !important;
         }
 
         .toko-table .store-actions .btn {
             min-width: 38px;
             min-height: 38px;
+        }
+
+        .toko-detail-toggle {
+            min-width: 0;
+            min-height: 38px;
+            padding: .35rem .7rem;
+        }
+
+        .toko-detail-grid {
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: .75rem !important;
         }
     }
 </style>
@@ -135,16 +220,22 @@
                     <tr>
                         <th class="text-center" style="width: 50px;">No</th>
                         <th>Nama Toko</th>
+                        <th class="text-center" style="width: 110px;">Detail</th>
                         <th class="text-center" style="width: 150px;">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($tokos as $index => $item)
-                    <tr>
+                    <tr class="toko-main-row">
                         <td class="text-center fw-semibold text-muted" data-label="No">
                             {{ $loop->iteration }}
                         </td>
                         <td class="fw-semibold" data-label="Nama Toko">{{ $item->nama_toko }}</td>
+                        <td class="text-center" data-label="Detail">
+                            <button class="btn btn-sm btn-outline-secondary toko-detail-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#detailToko{{ $item->id }}" aria-expanded="false" aria-controls="detailToko{{ $item->id }}">
+                                <i class="bi bi-chevron-down me-1"></i>Detail
+                            </button>
+                        </td>
                         <td class="text-center" data-label="Aksi">
                             <div class="store-actions d-flex justify-content-center gap-2">
                                 <button type="button" class="btn btn-sm btn-warning text-white fw-semibold" data-bs-toggle="modal" data-bs-target="#modalEditToko{{ $item->id }}" title="Edit Data" aria-label="Edit toko {{ $item->nama_toko }}">
@@ -157,6 +248,28 @@
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </form>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr class="toko-detail-row">
+                        <td colspan="4">
+                            <div class="collapse" id="detailToko{{ $item->id }}">
+                                <div class="toko-detail-panel">
+                                    <div class="toko-detail-grid">
+                                        <div class="toko-detail-item">
+                                            <div class="small text-muted fw-semibold text-uppercase mb-1">Lokasi Toko</div>
+                                            <div>{{ $item->lokasi_toko ?: 'Belum diisi' }}</div>
+                                        </div>
+                                        <div class="toko-detail-item">
+                                            <div class="small text-muted fw-semibold text-uppercase mb-1">Link Toko</div>
+                                            @if($item->link_toko)
+                                            <a href="{{ $item->link_toko }}" target="_blank" rel="noopener noreferrer">{{ $item->link_toko }}</a>
+                                            @else
+                                            <div>Belum diisi</div>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </td>
                     </tr>
@@ -173,10 +286,6 @@
                                     @csrf
                                     @method('PUT')
                                     <div class="modal-body">
-                                        <div class="mb-3">
-                                            <label class="form-label fw-semibold">Kode Toko <span class="text-muted fw-normal">(Opsional)</span></label>
-                                            <input type="text" name="kode_toko" class="form-control" value="{{ old('kode_toko', $item->kode_toko) }}">
-                                        </div>
                                         <div class="mb-3">
                                             <label class="form-label fw-semibold">Nama Toko</label>
                                             <input type="text" name="nama_toko" class="form-control" value="{{ old('nama_toko', $item->nama_toko) }}" required>
@@ -200,7 +309,7 @@
                     </div>
                     @empty
                     <tr>
-                        <td colspan="3" class="text-center py-4 text-muted">Tidak ada data toko.</td>
+                        <td colspan="4" class="text-center py-4 text-muted">Tidak ada data toko.</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -220,10 +329,6 @@
             <form action="{{ route('toko.store') }}" method="POST">
                 @csrf
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Kode Toko <span class="text-muted fw-normal">(Opsional)</span></label>
-                        <input type="text" name="kode_toko" class="form-control" placeholder="Contoh: TK-001 / TOKO-TKP">
-                    </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Nama Toko</label>
                         <input type="text" name="nama_toko" class="form-control" placeholder="Contoh: Toko Official Gadget" required>

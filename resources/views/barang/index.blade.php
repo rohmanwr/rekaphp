@@ -39,7 +39,7 @@
                     id="searchInput"
                     name="search"
                     class="form-control border-start-0 ps-0"
-                    placeholder="Cari berdasarkan Kode Barang atau Nama Barang..."
+                    placeholder="Cari nama barang..."
                     value="{{ $search }}"
                     autocomplete="off"
                     autofocus>
@@ -61,7 +61,6 @@
                 <thead class="table-light">
                     <tr>
                         <th class="text-center" style="width: 50px;">No</th>
-                        <th>Kode Barang</th>
                         <th>Nama Barang</th>
                         <th>Harga Jual</th>
                         <th class="text-center" style="width: 150px;">Aksi</th>
@@ -74,7 +73,6 @@
                         <td class="text-center fw-semibold text-muted">
                             {{ $loop->iteration }}
                         </td>
-                        <td><span class="badge bg-dark fs-6">{{ $item->kode_barang }}</span></td>
                         <td class="fw-semibold">{{ $item->nama_barang }}</td>
                         <td class="fw-bold text-success">Rp {{ number_format($item->harga_jual, 0, ',', '.') }}</td>
                         <td class="text-center">
@@ -104,10 +102,6 @@
                                     @method('PUT')
                                     <div class="modal-body">
                                         <div class="mb-3">
-                                            <label class="form-label fw-semibold">Kode Barang</label>
-                                            <input type="text" name="kode_barang" class="form-control" value="{{ old('kode_barang', $item->kode_barang) }}" required>
-                                        </div>
-                                        <div class="mb-3">
                                             <label class="form-label fw-semibold">Nama Barang</label>
                                             <input type="text" name="nama_barang" class="form-control" value="{{ old('nama_barang', $item->nama_barang) }}" required>
                                         </div>
@@ -126,7 +120,7 @@
                     </div>
                     @empty
                     <tr>
-                        <td colspan="5" class="text-center py-4 text-muted">Tidak ada data barang.</td>
+                        <td colspan="4" class="text-center py-4 text-muted">Tidak ada data barang.</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -146,10 +140,6 @@
             <form action="{{ route('barang.store') }}" method="POST" class="form-barang">
                 @csrf
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Kode Barang</label>
-                        <input type="text" name="kode_barang" class="form-control" placeholder="Contoh: BRG-001 / IP13-128" required>
-                    </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Nama Barang</label>
                         <input type="text" name="nama_barang" class="form-control" placeholder="Contoh: iPhone 13 Pro 128GB" required>

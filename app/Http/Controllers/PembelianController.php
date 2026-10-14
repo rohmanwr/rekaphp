@@ -20,6 +20,24 @@ class PembelianController extends Controller
     {
         $search = $request->input('search');
         $selectedStatus = $request->input('status');
+        $selectedSort = $request->input('sort') === 'az' ? 'az' : null;
+        $sortColumns = [
+            'no' => 'id',
+            'pesanan' => 'kode_manual',
+            'barang' => 'nama_barang',
+            'imei' => 'detail_imei',
+            'via' => 'via',
+            'tanggal' => 'tanggal_beli',
+            'modal' => 'total_modal',
+            'waktu' => 'updated_at',
+            'status' => 'status',
+            'lampiran' => 'file_lampiran',
+        ];
+        $requestedSortBy = $request->input('sort_by');
+        $selectedSortBy = is_string($requestedSortBy) && array_key_exists($requestedSortBy, $sortColumns)
+            ? $requestedSortBy
+            : null;
+        $selectedSortDirection = $request->input('sort_dir') === 'desc' ? 'desc' : 'asc';
 
         $query = Pembelian::with('user');
 
@@ -44,7 +62,29 @@ class PembelianController extends Controller
             });
         }
 
-        if ($selectedStatus === 'Selesai') {
+        if ($selectedSortBy !== null) {
+            if ($selectedSortBy === 'barang') {
+                $query
+                    ->orderBy('nama_barang', $selectedSortDirection)
+                    ->orderBy('nama_toko', $selectedSortDirection);
+            } elseif ($selectedSortBy === 'lampiran') {
+                $query->orderByRaw(
+                    "CASE WHEN file_lampiran IS NULL THEN 1 ELSE 0 END {$selectedSortDirection}"
+                );
+            } else {
+                $query->orderBy($sortColumns[$selectedSortBy], $selectedSortDirection);
+            }
+
+            if ($selectedSortBy !== 'no') {
+                $query->orderByDesc('id');
+            }
+            $pembelians = $query->get();
+        } elseif ($selectedSort === 'az') {
+            $pembelians = $query
+                ->orderBy('nama_barang')
+                ->orderByDesc('id')
+                ->get();
+        } elseif ($selectedStatus === 'Selesai') {
             $pembelians = $query
                 ->orderByRaw('CASE WHEN tanggal_terbit IS NULL THEN 1 ELSE 0 END')
                 ->orderByDesc('tanggal_terbit')
@@ -58,7 +98,7 @@ class PembelianController extends Controller
         $tokos   = Toko::orderBy('nama_toko', 'asc')->get();
         $devices = Device::orderBy('nama_device', 'asc')->get();
 
-        return view('pembelian.index', compact('pembelians', 'barangs', 'tokos', 'devices', 'search', 'selectedStatus'));
+        return view('pembelian.index', compact('pembelians', 'barangs', 'tokos', 'devices', 'search', 'selectedStatus', 'selectedSort', 'selectedSortBy', 'selectedSortDirection'));
     }
 
     public function lampiran(string $filename)
@@ -414,7 +454,7 @@ class PembelianController extends Controller
             'detail_imei'  => 'nullable|string',
         ]);
 
-        $data = $request->except(['file_lampiran', 'delete_files']);
+        $data = $request->except(['file_lampiran', 'delete_files', 'created_at', 'updated_at']);
         if ($data['titipan'] === 'Ya, (tidak ambil untung)') {
             $barang = Barang::where('nama_barang', $data['nama_barang'])->first();
             if (!$barang) {

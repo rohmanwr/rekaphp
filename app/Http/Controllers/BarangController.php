@@ -7,6 +7,7 @@ use App\Models\Invoice;
 use App\Models\Pembelian;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class BarangController extends Controller
 {
@@ -25,16 +26,25 @@ class BarangController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'kode_barang' => 'required|string|max:50|unique:barangs,kode_barang',
             'nama_barang' => 'required|string|max:255',
             'harga_jual'  => 'required',
         ]);
 
-        Barang::create([
-            'kode_barang' => $request->kode_barang,
-            'nama_barang' => $request->nama_barang,
-            'harga_jual'  => str_replace('.', '', $request->harga_jual), // Bersihkan titik format rupiah
-        ]);
+        DB::transaction(function () use ($request) {
+            $barang = Barang::create([
+                'kode_barang' => 'TEMP-' . Str::uuid(),
+                'nama_barang' => $request->nama_barang,
+                'harga_jual'  => str_replace('.', '', $request->harga_jual),
+            ]);
+
+            $nomor = $barang->id;
+            do {
+                $kodeBarang = 'BRG-' . str_pad((string) $nomor, 5, '0', STR_PAD_LEFT);
+                $nomor++;
+            } while (Barang::where('kode_barang', $kodeBarang)->where('id', '!=', $barang->id)->exists());
+
+            $barang->update(['kode_barang' => $kodeBarang]);
+        });
 
         return redirect()->route('barang.index')->with('success', 'Data barang berhasil ditambahkan!');
     }
@@ -44,7 +54,6 @@ class BarangController extends Controller
         $barang = Barang::findOrFail($id);
 
         $request->validate([
-            'kode_barang' => 'required|string|max:50|unique:barangs,kode_barang,' . $barang->id,
             'nama_barang' => 'required|string|max:255',
             'harga_jual'  => 'required',
         ]);
@@ -57,7 +66,6 @@ class BarangController extends Controller
 
         DB::transaction(function () use ($barang, $request, $namaBarangSebelumnya, $namaBarangBaru, $hargaJualBaru, &$jumlahDisinkronkan, &$jumlahTerkunci) {
             $barang->update([
-                'kode_barang' => $request->kode_barang,
                 'nama_barang' => $namaBarangBaru,
                 'harga_jual'  => $hargaJualBaru,
             ]);

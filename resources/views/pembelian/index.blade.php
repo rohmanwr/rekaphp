@@ -37,12 +37,39 @@
 </div>
 @endif
 
+@php
+$sortQuery = array_filter(['sort' => $selectedSort]);
+if ($selectedSortBy !== null) {
+    $sortQuery['sort_by'] = $selectedSortBy;
+    $sortQuery['sort_dir'] = $selectedSortDirection;
+}
+$sortableHeaders = [
+    ['label' => 'No', 'key' => 'no', 'class' => 'text-center', 'style' => 'width: 50px;'],
+    ['label' => 'No Pesanan / Nama / Trader', 'key' => 'pesanan'],
+    ['label' => 'Barang & Toko', 'key' => 'barang'],
+    ['label' => 'IMEI / Serial', 'key' => 'imei'],
+    ['label' => 'Via', 'key' => 'via'],
+    ['label' => 'Tgl Beli', 'key' => 'tanggal'],
+    ['label' => 'Total Modal', 'key' => 'modal'],
+    ['label' => 'Tanggal Input / Edit', 'key' => 'waktu'],
+    ['label' => 'Status', 'key' => 'status', 'style' => 'width: 150px;'],
+    ['label' => 'Lampiran', 'key' => 'lampiran'],
+];
+@endphp
+
 <!-- Searchbar Filter & Filter Status dengan Jumlah Total -->
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body p-3">
         <form id="searchForm" action="{{ route('pembelian.index') }}" method="GET">
             @if(!empty($selectedStatus))
             <input type="hidden" name="status" value="{{ $selectedStatus }}">
+            @endif
+            @if(!empty($selectedSort))
+            <input type="hidden" name="sort" value="{{ $selectedSort }}">
+            @endif
+            @if(!empty($selectedSortBy))
+            <input type="hidden" name="sort_by" value="{{ $selectedSortBy }}">
+            <input type="hidden" name="sort_dir" value="{{ $selectedSortDirection }}">
             @endif
             <div class="input-group mb-3">
                 <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
@@ -55,7 +82,7 @@
                     value="{{ $search }}"
                     autocomplete="off">
                 @if(!empty($search))
-                <a href="{{ route('pembelian.index', ['status' => $selectedStatus]) }}" class="btn btn-outline-secondary" title="Reset Pencarian Teks">
+                <a href="{{ route('pembelian.index', array_filter(array_merge(['status' => $selectedStatus], $sortQuery))) }}" class="btn btn-outline-secondary" title="Reset Pencarian Teks">
                     <i class="bi bi-x-lg"></i>
                 </a>
                 @endif
@@ -89,44 +116,54 @@
         <div class="d-flex flex-nowrap overflow-x-auto align-items-center gap-2 pb-2">
             <span class="fw-semibold text-muted small flex-shrink-0"><i class="bi bi-funnel-fill"></i> Filter:</span>
 
-            <a href="{{ route('pembelian.index', array_filter(['search' => $search])) }}"
+            <a href="{{ route('pembelian.index', array_filter(array_merge(['search' => $search], $sortQuery))) }}"
                 class="btn btn-sm rounded-pill flex-shrink-0 {{ empty($selectedStatus) ? 'btn-dark' : 'btn-outline-secondary' }}">
                 Semua <span class="badge bg-light text-dark ms-1">{{ $countSemua }}</span>
             </a>
 
-            <a href="{{ route('pembelian.index', array_filter(['search' => $search, 'status' => 'Belum Ready'])) }}"
+            <a href="{{ route('pembelian.index', array_filter(array_merge(['search' => $search, 'status' => 'Belum Ready'], $sortQuery))) }}"
                 class="btn btn-sm rounded-pill flex-shrink-0 {{ $selectedStatus == 'Belum Ready' ? 'btn-warning text-dark fw-bold' : 'btn-outline-warning text-dark' }}">
                 ⏳ Belum Ready <span class="badge bg-dark text-white ms-1">{{ $countBelumReady }}</span>
             </a>
 
-            <a href="{{ route('pembelian.index', array_filter(['search' => $search, 'status' => 'Sudah Ready'])) }}"
+            <a href="{{ route('pembelian.index', array_filter(array_merge(['search' => $search, 'status' => 'Sudah Ready'], $sortQuery))) }}"
                 class="btn btn-sm rounded-pill flex-shrink-0 {{ $selectedStatus == 'Sudah Ready' ? 'btn-success fw-bold' : 'btn-outline-success' }}">
                 ✅ Sudah Ready <span class="badge bg-light text-dark ms-1">{{ $countSudahReady }}</span>
             </a>
 
-            <a href="{{ route('pembelian.index', array_filter(['search' => $search, 'status' => 'Sudah Diambil'])) }}"
+            <a href="{{ route('pembelian.index', array_filter(array_merge(['search' => $search, 'status' => 'Sudah Diambil'], $sortQuery))) }}"
                 class="btn btn-sm rounded-pill flex-shrink-0 {{ $selectedStatus == 'Sudah Diambil' ? 'btn-primary fw-bold' : 'btn-outline-primary' }}">
                 📦 Sudah Diambil <span class="badge bg-light text-dark ms-1">{{ $countSudahDiambil }}</span>
             </a>
 
-            <a href="{{ route('pembelian.index', array_filter(['search' => $search, 'status' => 'Bermasalah'])) }}"
+            <a href="{{ route('pembelian.index', array_filter(array_merge(['search' => $search, 'status' => 'Bermasalah'], $sortQuery))) }}"
                 class="btn btn-sm rounded-pill flex-shrink-0 {{ $selectedStatus == 'Bermasalah' ? 'btn-danger fw-bold' : 'btn-outline-danger' }}">
                 ⚠️ Bermasalah <span class="badge bg-light text-dark ms-1">{{ $countBermasalah }}</span>
             </a>
 
-            <a href="{{ route('pembelian.index', array_filter(['search' => $search, 'status' => 'Jual'])) }}"
+            <a href="{{ route('pembelian.index', array_filter(array_merge(['search' => $search, 'status' => 'Jual'], $sortQuery))) }}"
                 class="btn btn-sm rounded-pill flex-shrink-0 {{ $selectedStatus == 'Jual' ? 'btn-info text-white fw-bold' : 'btn-outline-info text-dark' }}">
                 🏷️ Jual <span class="badge bg-light text-dark ms-1">{{ $countJual }}</span>
             </a>
 
-            <a href="{{ route('pembelian.index', array_filter(['search' => $search, 'status' => 'Selesai'])) }}"
+            <a href="{{ route('pembelian.index', array_filter(array_merge(['search' => $search, 'status' => 'Selesai'], $sortQuery))) }}"
                 class="btn btn-sm rounded-pill flex-shrink-0 {{ $selectedStatus == 'Selesai' ? 'btn-secondary text-white fw-bold' : 'btn-outline-secondary' }}">
                 🏁 Selesai <span class="badge bg-light text-dark ms-1">{{ $countSelesai }}</span>
             </a>
 
-            <a href="{{ route('pembelian.index', array_filter(['search' => $search, 'status' => 'Retur'])) }}"
+            <a href="{{ route('pembelian.index', array_filter(array_merge(['search' => $search, 'status' => 'Retur'], $sortQuery))) }}"
                 class="btn btn-sm rounded-pill flex-shrink-0 {{ $selectedStatus == 'Retur' ? 'btn-danger text-white fw-bold' : 'btn-outline-danger' }}">
                 <i class="bi bi-arrow-return-left me-1"></i>Retur <span class="badge bg-light text-dark ms-1">{{ $countRetur }}</span>
+            </a>
+
+            <span class="fw-semibold text-muted small flex-shrink-0 ms-2">Urutkan:</span>
+            <a href="{{ route('pembelian.index', array_filter(['search' => $search, 'status' => $selectedStatus])) }}"
+                class="btn btn-sm rounded-pill flex-shrink-0 {{ empty($selectedSort) && empty($selectedSortBy) ? 'btn-secondary' : 'btn-outline-secondary' }}">
+                Terbaru
+            </a>
+            <a href="{{ route('pembelian.index', array_filter(['search' => $search, 'status' => $selectedStatus, 'sort' => 'az'])) }}"
+                class="btn btn-sm rounded-pill flex-shrink-0 {{ $selectedSort === 'az' && empty($selectedSortBy) ? 'btn-dark' : 'btn-outline-dark' }}">
+                A - Z
             </a>
         </div>
     </div>
@@ -140,6 +177,48 @@
     <input type="hidden" name="status" id="statusSingleValue{{ $item->id }}" value="{{ $item->status }}">
 </form>
 @endforeach
+
+<!-- Kontrol pengurutan khusus mobile diletakkan di luar form update massal -->
+<div class="d-block d-md-none mb-3">
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-3">
+            <form action="{{ route('pembelian.index') }}" method="GET" class="d-flex align-items-end gap-2">
+                @if(!empty($search))
+                <input type="hidden" name="search" value="{{ $search }}">
+                @endif
+                @if(!empty($selectedStatus))
+                <input type="hidden" name="status" value="{{ $selectedStatus }}">
+                @endif
+                @if(!empty($selectedSort))
+                <input type="hidden" name="sort" value="{{ $selectedSort }}">
+                @endif
+                <div class="flex-grow-1">
+                    <label for="mobileSortBy" class="form-label small fw-semibold text-muted mb-1">
+                        <i class="bi bi-arrow-down-up me-1"></i>Urutkan berdasarkan
+                    </label>
+                    <select id="mobileSortBy" name="sort_by" class="form-select form-select-sm">
+                        <option value="" disabled {{ empty($selectedSortBy) ? 'selected' : '' }}>Pilih kolom</option>
+                        @foreach($sortableHeaders as $header)
+                        <option value="{{ $header['key'] }}" {{ $selectedSortBy === $header['key'] ? 'selected' : '' }}>
+                            {{ $header['label'] }}
+                        </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label for="mobileSortDirection" class="form-label small fw-semibold text-muted mb-1">Arah</label>
+                    <select id="mobileSortDirection" name="sort_dir" class="form-select form-select-sm">
+                        <option value="asc" {{ $selectedSortDirection === 'asc' ? 'selected' : '' }}>Naik</option>
+                        <option value="desc" {{ $selectedSortDirection === 'desc' ? 'selected' : '' }}>Turun</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm flex-shrink-0" aria-label="Terapkan pengurutan">
+                    <i class="bi bi-check-lg"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
 
 <!-- Form Update Status Massal -->
 <form action="{{ route('pembelian.updateStatusMassal') }}" method="POST" id="formMassal">
@@ -156,15 +235,31 @@
                             <th class="text-center" style="width: 40px;">
                                 <input type="checkbox" id="selectAll" class="form-check-input" title="Pilih Semua">
                             </th>
-                            <th class="text-center" style="width: 50px;">No</th>
-                            <th>No Pesanan / Nama / Trader</th>
-                            <th>Barang & Toko</th>
-                            <th>IMEI / Serial</th>
-                            <th>Via</th>
-                            <th>Tgl Beli</th>
-                            <th>Total Modal</th>
-                            <th style="width: 150px;">Status</th>
-                            <th>Lampiran</th>
+                            @foreach($sortableHeaders as $header)
+                            @php
+                                $isCurrentSort = $selectedSortBy === $header['key'];
+                                $nextDirection = $isCurrentSort && $selectedSortDirection === 'asc' ? 'desc' : 'asc';
+                                $sortIcon = $isCurrentSort
+                                    ? ($selectedSortDirection === 'asc' ? 'bi-sort-up' : 'bi-sort-down')
+                                    : 'bi-arrow-down-up';
+                            @endphp
+                            <th class="{{ $header['class'] ?? '' }}" @if(!empty($header['style'])) style="{{ $header['style'] }}" @endif>
+                                <div class="d-flex align-items-center justify-content-between gap-1">
+                                    <span>{{ $header['label'] }}</span>
+                                    <a href="{{ route('pembelian.index', array_filter([
+                                        'search' => $search,
+                                        'status' => $selectedStatus,
+                                        'sort_by' => $header['key'],
+                                        'sort_dir' => $nextDirection,
+                                    ])) }}"
+                                        class="btn btn-sm p-0 border-0 text-muted flex-shrink-0"
+                                        title="Urutkan {{ $header['label'] }} {{ $nextDirection === 'asc' ? 'menaik' : 'menurun' }}"
+                                        aria-label="Urutkan {{ $header['label'] }} {{ $nextDirection === 'asc' ? 'menaik' : 'menurun' }}">
+                                        <i class="bi {{ $sortIcon }}"></i>
+                                    </a>
+                                </div>
+                            </th>
+                            @endforeach
                             <th class="text-center" style="width: 120px;">Aksi</th>
                         </tr>
                     </thead>
@@ -226,6 +321,10 @@
                             </td>
                             <td>{{ \Carbon\Carbon::parse($item->tanggal_beli)->format('d/m/Y') }}</td>
                             <td class="fw-bold">Rp {{ number_format($item->total_modal, 0, ',', '.') }}</td>
+                            <td class="small text-nowrap">
+                                <div><span class="text-muted">Input pertama:</span> {{ optional($item->created_at)->format('d/m/Y H:i') ?? '-' }}</div>
+                                <div><span class="text-muted">Edit terakhir:</span> {{ optional($item->updated_at)->format('d/m/Y H:i') ?? '-' }}</div>
+                            </td>
                             <td>
                                 <select form="formStatusSingle{{ $item->id }}" class="form-select form-select-sm rounded-pill fw-semibold" onchange="document.getElementById('statusSingleValue{{ $item->id }}').value=this.value; document.getElementById('formStatusSingle{{ $item->id }}').submit()" style="width: fit-content; min-width: 140px;">
                                     @if($item->status == 'Retur')<option value="Retur" selected disabled>↩️ Retur</option>@endif
@@ -275,7 +374,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="11" class="text-center py-4 text-muted">Tidak ada data rekap pembelian.</td>
+                            <td colspan="12" class="text-center py-4 text-muted">Tidak ada data rekap pembelian.</td>
                         </tr>
                         @endforelse
                     </tbody>
@@ -347,6 +446,10 @@
                 <div class="d-flex justify-content-between align-items-center my-2">
                     <span class="text-muted small"><i class="bi bi-calendar-event me-1"></i>{{ \Carbon\Carbon::parse($item->tanggal_beli)->format('d/m/Y') }}</span>
                     <span class="fw-bold text-dark fs-6">Rp {{ number_format($item->total_modal, 0, ',', '.') }}</span>
+                </div>
+                <div class="small text-muted mb-2">
+                    <div><i class="bi bi-calendar-plus me-1"></i>Input pertama: {{ optional($item->created_at)->format('d/m/Y H:i') ?? '-' }}</div>
+                    <div><i class="bi bi-pencil-square me-1"></i>Edit terakhir: {{ optional($item->updated_at)->format('d/m/Y H:i') ?? '-' }}</div>
                 </div>
                 <div class="text-muted small mb-2">Trader: {{ $item->nama_trader ?: '-' }}</div>
 

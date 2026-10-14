@@ -125,16 +125,23 @@
                     <i>{{ $invoice->terbilang }}</i>
                 </p>
             </div>
-            <div class="col-5">
-                <table class="w-100 small mb-4">
-                    <tr>
-                        <td class="py-2 text-muted fw-semibold">Subtotal</td>
-                        <td class="py-2 text-end fw-bold">Rp {{ number_format($invoice->subtotal, 0, ',', '.') }}</td>
-                    </tr>
-                    <tr class="border-top border-dark">
-                        <td class="py-3 fw-bold text-dark fs-6">Total</td>
-                        <td class="py-3 text-end fw-bold text-dark fs-6 text-decoration-underline">Rp {{ number_format($invoice->total, 0, ',', '.') }}</td>
-                    </tr>
+            @php
+                $totalQty = collect($invoice->items)->sum('kuantitas');
+            @endphp
+            <div class="col-6">
+                <table class="table table-bordered w-100 small mb-4">
+                    <tbody>
+                        <tr>
+                            <td class="py-2 px-2">
+                                <div class="text-muted fw-semibold">Total Qty</div>
+                                <div class="fw-bold">{{ number_format($totalQty, 0, ',', '.') }} unit</div>
+                            </td>
+                            <td class="py-2 px-2 text-end">
+                                <div class="text-muted fw-semibold">Subtotal</div>
+                                <div class="fw-bold fs-6">Rp {{ number_format($invoice->subtotal, 0, ',', '.') }}</div>
+                            </td>
+                        </tr>
+                    </tbody>
                 </table>
 
                 <!-- Tanda Tangan -->
